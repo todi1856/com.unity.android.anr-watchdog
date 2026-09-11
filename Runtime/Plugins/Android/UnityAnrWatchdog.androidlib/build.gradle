@@ -1,15 +1,16 @@
 apply plugin: 'com.android.library'
 
 android {
-    // AGP 8 requires the namespace here - the manifest must not declare a package attribute.
     namespace 'com.unity3d.anrwatchdog'
 
-    // Keep in sync with the SDK the Unity project builds against. The module is compiled by the
-    // project's toolchain, so a compileSdk that is not installed fails the whole Gradle build.
-    compileSdk 34
+    ndkPath getProperty("unity.androidNdkPath")
+    ndkVersion getProperty("unity.androidNdkVersion")
+    compileSdk getProperty("unity.targetSdkVersion") as int
+    buildToolsVersion getProperty("unity.buildToolsVersion")
 
     defaultConfig {
-        minSdk 23
+        minSdk getProperty("unity.minSdkVersion") as int
+        targetSdk getProperty("unity.targetSdkVersion") as int
 
         externalNativeBuild {
             cmake {
@@ -27,7 +28,7 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.valueOf(getProperty("unity.javaCompatabilityVersion"))
+        targetCompatibility JavaVersion.valueOf(getProperty("unity.javaCompatabilityVersion"))
     }
 }
