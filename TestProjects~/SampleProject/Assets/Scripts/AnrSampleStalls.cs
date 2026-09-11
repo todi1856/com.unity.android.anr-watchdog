@@ -15,7 +15,12 @@ static class AnrSampleStalls
     /// </summary>
     public static bool StallAndroidUiThread(float seconds, out string error)
     {
-#if UNITY_ANDROID && !UNITY_EDITOR
+        if (Application.platform != RuntimePlatform.Android)
+        {
+            error = "Only available in an Android player";
+            return false;
+        }
+
         try
         {
             using var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
@@ -35,10 +40,6 @@ static class AnrSampleStalls
             error = exception.Message;
             return false;
         }
-#else
-        error = "Only available in an Android player";
-        return false;
-#endif
     }
 
     /// <summary>

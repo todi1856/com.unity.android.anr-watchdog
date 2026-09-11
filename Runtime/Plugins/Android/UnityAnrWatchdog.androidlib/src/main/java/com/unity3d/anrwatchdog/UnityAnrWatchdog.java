@@ -23,7 +23,8 @@ public final class UnityAnrWatchdog
         long reportIntervalMs,
         String unityVersion,
         String scriptingBackend,
-        String buildType)
+        String buildType,
+        boolean worldReadableReports)
     {
         if (s_Watchdog != null)
             return;
@@ -37,6 +38,7 @@ public final class UnityAnrWatchdog
         watchdog.setANRPollInterval(pollIntervalMs);
         watchdog.setANRReportInterval(reportIntervalMs);
         watchdog.setEngineMetadata(unityVersion, scriptingBackend, buildType);
+        watchdog.setWorldReadableReports(worldReadableReports);
         watchdog.setDaemon(true);
         watchdog.start();
 

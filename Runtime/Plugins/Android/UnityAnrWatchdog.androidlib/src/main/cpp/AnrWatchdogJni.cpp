@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <jni.h>
 #include <string>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #if defined(__aarch64__)
@@ -28,6 +29,10 @@ namespace
 
     // How long to wait for a single thread to unwind itself before giving up on it.
     constexpr int kCaptureTimeoutMs = 3000;
+
+    // Selected from C# through AnrWatchdogSettings.worldReadableReports.
+    constexpr mode_t kOwnerOnlyFileMode = 0600;
+    constexpr mode_t kWorldReadableFileMode = 0644;
 
     std::string BuildNativeReport()
     {
@@ -109,16 +114,23 @@ namespace
 
     // Writes to a temporary file and renames it into place, so a reader on the C# side never
     // observes a half-written report.
-    bool WriteReportAtomically(const std::string& path, const std::string& content)
+    bool WriteReportAtomically(const std::string& path, const std::string& content, mode_t mode)
     {
         const std::string temporaryPath = path + ".part";
 
-        int fd = TEMP_FAILURE_RETRY(open(temporaryPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600));
+        int fd = TEMP_FAILURE_RETRY(open(temporaryPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, mode));
         if (fd == -1)
         {
             ANR_LOG_ERROR("Failed to open '%s': %s", temporaryPath.c_str(), strerror(errno));
             return false;
         }
+
+        // App processes run with umask 0077, so the mode passed to open() is masked down to 0600.
+        // fchmod is not masked, which is the only way to widen it - and it is only needed when
+        // widening. The emulated storage volume synthesizes its own permissions and may ignore
+        // this, hence a log rather than a failure.
+        if (mode != kOwnerOnlyFileMode && fchmod(fd, mode) == -1)
+            ANR_LOG_INFO("Could not set mode %o on '%s': %s", mode, temporaryPath.c_str(), strerror(errno));
 
         size_t written = 0;
         while (written < content.size())
@@ -162,7 +174,8 @@ namespace
     }
 
     // Note: called on the watchdog thread while the main thread is unresponsive.
-    jboolean nativeApplicationNotResponding(JNIEnv* env, jobject /*thiz*/, jstring javaThreadsJson, jstring reportPath)
+    jboolean nativeApplicationNotResponding(JNIEnv* env, jobject /*thiz*/, jstring javaThreadsJson, jstring reportPath,
+        jboolean worldReadable)
     {
         const std::string javaReport = ToStdString(env, javaThreadsJson);
         const std::string path = ToStdString(env, reportPath);
@@ -179,7 +192,8 @@ namespace
         if (!MergeJsonObjects(javaReport, BuildNativeReport(), merged))
             return JNI_FALSE;
 
-        if (!WriteReportAtomically(path, merged))
+        const mode_t mode = worldReadable == JNI_TRUE ? kWorldReadableFileMode : kOwnerOnlyFileMode;
+        if (!WriteReportAtomically(path, merged, mode))
             return JNI_FALSE;
 
         ANR_LOG_INFO("ANR report written to %s", path.c_str());
@@ -187,7 +201,7 @@ namespace
     }
 
     const JNINativeMethod kMethods[] = {
-        {"nativeApplicationNotResponding", "(Ljava/lang/String;Ljava/lang/String;)Z", reinterpret_cast<void*>(nativeApplicationNotResponding)},
+        {"nativeApplicationNotResponding", "(Ljava/lang/String;Ljava/lang/String;Z)Z", reinterpret_cast<void*>(nativeApplicationNotResponding)},
     };
 }
 

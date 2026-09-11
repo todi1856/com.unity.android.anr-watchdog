@@ -87,6 +87,7 @@ public class AnrSampleWindow : MonoBehaviour
         root.Q<Button>("stall-ui-thread").clicked += StallAndroidUiThread;
         root.Q<Button>("stall-main-thread").clicked += StallUnityMainThread;
         root.Q<Button>("clear-log").clicked += ClearLog;
+        root.Q<Button>("clear-reports").clicked += ClearReports;
         root.Q<Button>("close-report").clicked += HideReport;
         m_ToggleWatchdog.clicked += ToggleWatchdog;
         m_ViewReport.clicked += ShowReport;
@@ -313,6 +314,16 @@ public class AnrSampleWindow : MonoBehaviour
         // Layout has not run yet for the new entry, so scrolling waits a frame.
         m_LogScroll.schedule.Execute(() => m_LogScroll.scrollOffset =
             new Vector2(0, m_LogScroll.contentContainer.layout.height));
+    }
+
+    void ClearReports()
+    {
+        var reportCount = AnrWatchdog.GetReports().Length;
+        AnrWatchdog.ClearReports();
+
+        AppendLog(LogKind.Info, reportCount > 0
+            ? $"Deleted {reportCount} report(s) from {AnrWatchdog.ReportDirectory}"
+            : "No reports on disk to delete");
     }
 
     void ClearLog()

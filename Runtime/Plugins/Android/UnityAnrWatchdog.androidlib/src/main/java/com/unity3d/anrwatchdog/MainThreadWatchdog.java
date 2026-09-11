@@ -59,6 +59,8 @@ class MainThreadWatchdog extends Thread
     private String m_ScriptingBackend = "";
     private String m_BuildType = "";
 
+    private boolean m_WorldReadableReports = true;
+
     MainThreadWatchdog(Context context, Activity activity, File reportDirectory) {
         m_Context = context;
         m_Activity = activity;
@@ -95,6 +97,13 @@ class MainThreadWatchdog extends Thread
         if (milliseconds < 0)
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Value must be bigger than zero. Your value %d", milliseconds));
         m_PollIntervalMs = milliseconds;
+    }
+
+    /**
+     * Whether reports are written as 0644 rather than owner-only 0600.
+     */
+    void setWorldReadableReports(boolean worldReadable) {
+        m_WorldReadableReports = worldReadable;
     }
 
     void setEngineMetadata(String unityVersion, String scriptingBackend, String buildType) {
@@ -148,7 +157,7 @@ class MainThreadWatchdog extends Thread
                 return;
 
             // Native side appends the native thread dump and writes the merged report atomically.
-            if (!nativeApplicationNotResponding(javaReport, reportPath))
+            if (!nativeApplicationNotResponding(javaReport, reportPath, m_WorldReadableReports))
                 logMessage("Failed to write ANR report to " + reportPath);
         } catch (JSONException e) {
             logMessage("Failed to serialize ANR report: " + e);
@@ -253,5 +262,5 @@ class MainThreadWatchdog extends Thread
      * Collects the native thread dump, merges it with the supplied Java report and writes the
      * result to reportPath. Called on the watchdog thread while the main thread is stuck.
      */
-    private native boolean nativeApplicationNotResponding(String javaThreadsJson, String reportPath);
+    private native boolean nativeApplicationNotResponding(String javaThreadsJson, String reportPath, boolean worldReadable);
 }

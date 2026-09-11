@@ -91,5 +91,13 @@ namespace Unity.Android
 
         public JavaThread[] javaThreads;
         public NativeThread[] nativeThreads;
+
+        /// <summary>
+        /// File this report was read from. Set by <see cref="AnrWatchdog.GetReports"/>, never part
+        /// of the report on disk - reports stay on disk until cleared, so callers need a way to
+        /// tell which ones they have already seen.
+        /// </summary>
+        [NonSerialized]
+        public string sourcePath;
     }
 }

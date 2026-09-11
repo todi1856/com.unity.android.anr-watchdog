@@ -27,7 +27,11 @@
             <ui:VisualElement class="button-row">
                 <ui:Button name="toggle-watchdog" text="Stop watchdog" class="button" />
                 <ui:Button name="view-report" text="View last report" class="button" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="button-row">
                 <ui:Button name="clear-log" text="Clear log" class="button" />
+                <ui:Button name="clear-reports" text="Clear reports" class="button" />
             </ui:VisualElement>
 
             <ui:Label name="hint" class="hint"

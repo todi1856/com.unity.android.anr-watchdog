@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Unity.Android
@@ -12,6 +13,10 @@ namespace Unity.Android
         static AnrReportPoller s_Instance;
 
         float m_IntervalSeconds;
+
+        // Reports are no longer removed when read, so the poller remembers what it has already
+        // raised instead of relying on the file disappearing.
+        readonly HashSet<string> m_Raised = new HashSet<string>();
 
         internal static void Run(float intervalSeconds)
         {
@@ -44,8 +49,11 @@ namespace Unity.Android
                 // Unscaled, so a stalled or paused game does not change how often reports surface.
                 yield return new WaitForSecondsRealtime(m_IntervalSeconds);
 
-                foreach (var report in AnrWatchdog.TakePendingReports())
-                    AnrWatchdog.RaiseAnrDetected(report);
+                foreach (var report in AnrWatchdog.GetReports())
+                {
+                    if (m_Raised.Add(report.sourcePath))
+                        AnrWatchdog.RaiseAnrDetected(report);
+                }
             }
         }
     }

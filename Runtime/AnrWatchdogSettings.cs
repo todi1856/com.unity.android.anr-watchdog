@@ -27,16 +27,28 @@ namespace Unity.Android
         /// <summary>
         /// How often C# checks the report directory for new reports to raise
         /// <see cref="AnrWatchdog.AnrDetected"/> for. Zero disables polling, leaving
-        /// <see cref="AnrWatchdog.TakePendingReports"/> as the only way to collect them.
+        /// <see cref="AnrWatchdog.GetReports"/> as the only way to collect them.
         /// </summary>
         public float reportPollIntervalSeconds;
+
+        /// <summary>
+        /// Write reports as 0644 instead of 0600, so anything on the device that can reach the
+        /// report directory can read them. Reports hold thread names and stacks, no user data.
+        /// <para>
+        /// App processes run with umask 0077, so this takes an explicit fchmod - and the emulated
+        /// storage volume synthesizes its own permissions and may ignore it. Set it to false to
+        /// leave the files owner-only.
+        /// </para>
+        /// </summary>
+        public bool worldReadableReports;
 
         public static AnrWatchdogSettings Default => new AnrWatchdogSettings
         {
             anrTimeoutMs = 3000,
             pollIntervalMs = 300,
             reportIntervalMs = 10000,
-            reportPollIntervalSeconds = 1.0f
+            reportPollIntervalSeconds = 1.0f,
+            worldReadableReports = true
         };
     }
 }

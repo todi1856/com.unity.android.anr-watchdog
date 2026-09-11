@@ -52,16 +52,17 @@ The watchdog is not started automatically - nothing happens until `AnrWatchdog.S
 * **anrTimeoutMs** (default `3000`) - how long the main thread must be stuck before it counts as an ANR. Lower than Android's own threshold, so the stall is captured before the system kills the app.
 * **pollIntervalMs** (default `300`) - how often the watchdog thread checks the main thread.
 * **reportIntervalMs** (default `10000`) - minimum interval between two reports, so a main thread that stays stuck does not produce a report on every check.
-* **reportPollIntervalSeconds** (default `1.0`) - how often C# checks for new reports to raise `AnrDetected` for. Set to `0` to disable polling and collect reports yourself with `AnrWatchdog.TakePendingReports()`.
+* **reportPollIntervalSeconds** (default `1.0`) - how often C# checks for new reports to raise `AnrDetected` for. Set to `0` to disable polling and collect reports yourself with `AnrWatchdog.GetReports()`.
+* **worldReadableReports** (default `true`) - write reports as `0644` rather than owner-only `0600`. App processes run with `umask 0077`, so this takes an explicit `fchmod`, and the emulated storage volume synthesizes its own permissions and may ignore it. Set to `false` to leave the files owner-only.
 
 ## Reports
 
 Reports are written as JSON to `Application.persistentDataPath/anr/anr-<timestamp>.json`, atomically (written to `.part` and renamed), so a report is never read half-written. They can be collected in two ways:
 
 * the `AnrWatchdog.AnrDetected` event, raised on the main thread once it recovers;
-* `AnrWatchdog.TakePendingReports()`, which reads and removes every report on disk.
+* `AnrWatchdog.GetReports()`, which reads every report on disk, oldest first, and leaves them there. `AnrWatchdog.ClearReports()` deletes them when you are done - nothing removes them on your behalf, so reports survive across sessions and can be pulled off the device with adb.
 
-Both deliver the report only after the main thread starts running again - while it is stuck, no script code executes.
+Both deliver the report only after the main thread starts running again - while it is stuck, no script code executes. Each report carries the file it was read from in `sourcePath`, which is how the `AnrDetected` poller avoids raising the same report twice now that reading is non-destructive.
 
 A report contains device and build context (`packageName`, `unityVersion`, `deviceModel`, `deviceApiLevel`, `abi`, `orientation`, ...) plus two thread dumps:
 

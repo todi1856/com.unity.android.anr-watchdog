@@ -32,14 +32,19 @@ namespace Unity.Android
         {
             get
             {
-#if UNITY_ANDROID && !UNITY_EDITOR
+                if (!IsAndroidPlayer)
+                    return false;
+
                 using (var watchdog = new AndroidJavaClass(k_JavaClass))
                     return watchdog.CallStatic<bool>("isRunning");
-#else
-                return false;
-#endif
             }
         }
+
+        /// <summary>
+        /// Everything below this point talks to Java, which only exists in an Android player -
+        /// the Editor reports the Android platform only from a device, never from play mode.
+        /// </summary>
+        static bool IsAndroidPlayer => Application.platform == RuntimePlatform.Android;
 
         /// <summary>Starts the watchdog with <see cref="AnrWatchdogSettings.Default"/>.</summary>
         public static void Start() => Start(AnrWatchdogSettings.Default);
@@ -50,7 +55,12 @@ namespace Unity.Android
         /// </summary>
         public static void Start(AnrWatchdogSettings settings)
         {
-#if UNITY_ANDROID && !UNITY_EDITOR
+            if (!IsAndroidPlayer)
+            {
+                Debug.LogWarning($"{nameof(AnrWatchdog)} only runs in an Android player.");
+                return;
+            }
+
             Directory.CreateDirectory(ReportDirectory);
 
             using (var player = new AndroidJavaClass(k_UnityPlayerClass))
@@ -65,38 +75,36 @@ namespace Unity.Android
                     settings.reportIntervalMs,
                     Application.unityVersion,
                     ScriptingBackend,
-                    BuildType);
+                    BuildType,
+                    settings.worldReadableReports);
             }
 
             if (settings.reportPollIntervalSeconds > 0.0f)
                 AnrReportPoller.Run(settings.reportPollIntervalSeconds);
-#else
-            Debug.LogWarning($"{nameof(AnrWatchdog)} only runs in an Android player.");
-#endif
         }
 
         /// <summary>Stops the watchdog. Reports already on disk are left untouched.</summary>
         public static void Stop()
         {
-#if UNITY_ANDROID && !UNITY_EDITOR
+            if (!IsAndroidPlayer)
+                return;
+
             AnrReportPoller.Shutdown();
 
             using (var watchdog = new AndroidJavaClass(k_JavaClass))
                 watchdog.CallStatic("stop");
-#endif
         }
 
         /// <summary>
-        /// Reads and removes every report written so far. Reports are only readable once the main
+        /// Reads every report written so far, oldest first, and leaves them on disk - call
+        /// <see cref="ClearReports"/> to remove them. Reports are only readable once the main
         /// thread recovers, since the stall blocks script execution as well.
         /// </summary>
-        public static AnrReport[] TakePendingReports()
+        public static AnrReport[] GetReports()
         {
-            if (!Directory.Exists(ReportDirectory))
+            var files = GetReportFiles();
+            if (files.Length == 0)
                 return Array.Empty<AnrReport>();
-
-            var files = Directory.GetFiles(ReportDirectory, k_ReportSearchPattern);
-            Array.Sort(files, StringComparer.Ordinal); // File names are timestamps, so this is chronological.
 
             var reports = new List<AnrReport>(files.Length);
             foreach (var file in files)
@@ -104,26 +112,49 @@ namespace Unity.Android
                 try
                 {
                     var report = JsonUtility.FromJson<AnrReport>(File.ReadAllText(file));
-                    if (report != null)
-                        reports.Add(report);
+                    if (report == null)
+                        continue;
+
+                    report.sourcePath = file;
+                    reports.Add(report);
                 }
                 catch (Exception exception)
                 {
                     Debug.LogWarning($"Failed to read ANR report '{file}': {exception.Message}");
                 }
+            }
 
+            return reports.ToArray();
+        }
+
+        /// <summary>
+        /// Deletes every report on disk. Anything written after the last <see cref="GetReports"/>
+        /// call goes with them, so read before clearing.
+        /// </summary>
+        public static void ClearReports()
+        {
+            foreach (var file in GetReportFiles())
+            {
                 try
                 {
                     File.Delete(file);
-                    Debug.Log($"Deleted ANR report '{file}' after reading it.");
+                    Debug.Log($"Deleted ANR report '{file}'.");
                 }
                 catch (Exception exception)
                 {
                     Debug.LogWarning($"Failed to delete ANR report '{file}': {exception.Message}");
                 }
             }
+        }
 
-            return reports.ToArray();
+        static string[] GetReportFiles()
+        {
+            if (!Directory.Exists(ReportDirectory))
+                return Array.Empty<string>();
+
+            var files = Directory.GetFiles(ReportDirectory, k_ReportSearchPattern);
+            Array.Sort(files, StringComparer.Ordinal); // File names are timestamps, so this is chronological.
+            return files;
         }
 
         internal static void RaiseAnrDetected(AnrReport report) => AnrDetected?.Invoke(report);
