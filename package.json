@@ -7,5 +7,8 @@
     "author": {
         "name": "Tomas Dirvanauskas",
         "email": "tomas@unity3d.com"
+    },
+    "dependencies": {
+        "com.unity.modules.androidjni": "1.0.0"
     }
 }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The watchdog needs no permissions and no components - it is started from C# through
+    Unity.Android.AnrWatchdog. The manifest exists only so Gradle treats this folder as a library
+    module. Note that AGP 8 forbids the package attribute here; see namespace in build.gradle.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

@@ -1,18 +1,19 @@
 # ANR Watchdog for Unity Android
 
-A utility for detecting **ANR** (Application Not Responding) conditions in Unity players running on Android, and for reporting where the main thread was stuck when it stopped responding.
+A utility for detecting **ANR** (Application Not Responding) conditions in Unity players running on Android, and for reporting where every thread was when the main thread stopped responding.
 
 ### What is an ANR?
 
-Android raises an ANR when the app's main thread fails to respond to input or to service its message queue within a system-defined timeout. On Unity players this usually means the main thread is blocked inside script code, a native call or a synchronous load. Because the process is frozen, the stall is hard to catch with the profiler - the watchdog observes it from a background thread instead and captures the state of the main thread at the moment it stopped ticking.
+Android raises an ANR when the app's main thread fails to respond to input or to service its message queue within a system-defined timeout (roughly 5 seconds for input). On Unity players this usually means the main thread is blocked inside script code, a native call or a synchronous load. Because the process is frozen, the stall is hard to catch with the profiler - the watchdog observes it from a background thread instead and captures the state of the process at the moment the main thread stopped ticking.
 
-__Note:__ Detection is done from a background thread, so it keeps working while the main thread is unresponsive.
+__Note:__ Detection and capture both run on a background thread, so they keep working while the main thread is unresponsive.
 
 ## Requirements
 
 * [Git](https://git-scm.com/install/)
 * Unity **6000.0.0f1** or higher
 * Android as the active build target
+* Android **API level 23** or higher on the device
 
 ## Installation
 
@@ -25,14 +26,86 @@ __Note:__ Detection is done from a background thread, so it keeps working while 
 
 ## Quick Start
 
-1. Add the package to your project.
-2. Build and run on an Android device.
-3. Reports are written to logcat - filter by the watchdog tag to inspect them.
+```csharp
+using Unity.Android;
+using UnityEngine;
+
+public class AnrWatchdogBootstrap : MonoBehaviour
+{
+    void Start()
+    {
+        AnrWatchdog.AnrDetected += report =>
+            Debug.Log($"ANR after {report.anrTimeMs} ms, {report.javaThreads.Length} java / " +
+                      $"{report.nativeThreads.Length} native threads captured");
+
+        AnrWatchdog.Start();
+    }
+}
+```
+
+The watchdog is not started automatically - nothing happens until `AnrWatchdog.Start()` is called.
 
 ## Options
 
-_TODO: document the watchdog configuration (timeout threshold, reporting sink, whether to start automatically)._
+`AnrWatchdog.Start(AnrWatchdogSettings)` takes:
+
+* **anrTimeoutMs** (default `3000`) - how long the main thread must be stuck before it counts as an ANR. Lower than Android's own threshold, so the stall is captured before the system kills the app.
+* **pollIntervalMs** (default `300`) - how often the watchdog thread checks the main thread.
+* **reportIntervalMs** (default `10000`) - minimum interval between two reports, so a main thread that stays stuck does not produce a report on every check.
+* **reportPollIntervalSeconds** (default `1.0`) - how often C# checks for new reports to raise `AnrDetected` for. Set to `0` to disable polling and collect reports yourself with `AnrWatchdog.TakePendingReports()`.
 
 ## Reports
 
-_TODO: document the report format and how to read the captured main thread state._
+Reports are written as JSON to `Application.persistentDataPath/anr/anr-<timestamp>.json`, atomically (written to `.part` and renamed), so a report is never read half-written. They can be collected in two ways:
+
+* the `AnrWatchdog.AnrDetected` event, raised on the main thread once it recovers;
+* `AnrWatchdog.TakePendingReports()`, which reads and removes every report on disk.
+
+Both deliver the report only after the main thread starts running again - while it is stuck, no script code executes.
+
+A report contains device and build context (`packageName`, `unityVersion`, `deviceModel`, `deviceApiLevel`, `abi`, `orientation`, ...) plus two thread dumps:
+
+* **javaThreads** - name, id, state, priority and the Java stack of every thread, from `Thread.getAllStackTraces()`.
+* **nativeThreads** - name, id, state (from `/proc/<tid>/status`), priority (from `/proc/<tid>/stat`) and the native stack of every thread in the process.
+
+Native frames carry an `address` relative to the load address of `libraryName`, not a function name: resolving symbols on device costs more than a second for a full process dump. Symbolicate offline against the unstripped binaries from the build's `symbols.zip`, for example:
+
+```
+llvm-addr2line -f -C -e libunity.so <address>
+```
+
+## How it works
+
+* `MainThreadWatchdog` (Java) posts a ticker `Runnable` to the main `Looper`. If the ticker has not run for `anrTimeoutMs`, it serializes `Thread.getAllStackTraces()` and the device context to JSON and calls into native code.
+* The native library enumerates `/proc/self/task`, installs a handler for a real-time signal and interrupts each thread in turn. Each interrupted thread unwinds itself with `_Unwind_Backtrace` into a preallocated buffer, then signals the watchdog thread through a semaphore.
+* Addresses are resolved to libraries with `dladdr` afterwards, on the watchdog thread - the signal handler itself allocates nothing and takes no locks, because a thread stalled mid-ANR may well be holding the allocator's.
+* The native dump is merged into the Java report and written to disk.
+
+## Package layout
+
+```
+Runtime/
+  AnrWatchdog.cs                      # public API
+  AnrWatchdogSettings.cs
+  AnrReport.cs                        # report deserialized with JsonUtility
+  AnrReportPoller.cs
+  Plugins/Android/UnityAnrWatchdog.androidlib/
+    build.gradle                      # Gradle library module, builds the native code with CMake
+    src/main/java/com/unity3d/anrwatchdog/
+      UnityAnrWatchdog.java           # entry point called from C#
+      MainThreadWatchdog.java         # the watchdog thread
+    src/main/cpp/
+      AnrWatchdogJni.cpp              # JNI entry, report merging and atomic write
+      NativeThreads.cpp               # thread enumeration, signalling and unwinding
+      ProcUtils.cpp                   # /proc readers
+      JsonWriter.h
+```
+
+The native library is compiled from source for every ABI of the build, by the Gradle module itself - nothing is prebuilt or committed as a binary.
+
+## Known limitations
+
+* Native frames are addresses only; symbolication is an offline step.
+* Unwinding starts inside the signal handler, so the top frames of each native stack are the handler itself.
+* The capture signal is `SIGRTMIN + 4`. It deliberately avoids `SIGUSR1`/`SIGUSR2`, which Mono uses, but a third-party library installing a handler for the same real-time signal would conflict.
+* A thread wedged in an uninterruptible kernel state cannot respond to the signal; it is reported with an empty stack after a 3 second timeout.
