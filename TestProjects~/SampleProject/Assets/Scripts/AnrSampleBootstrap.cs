@@ -30,6 +30,7 @@ static class AnrSampleBootstrap
         if (styleSheet != null)
             document.rootVisualElement.styleSheets.Add(styleSheet);
 
+        StretchToPanel(document.rootVisualElement);
         ApplyFallbackFont(document.rootVisualElement);
 
         // No EventSystem is set up here on purpose - UI Toolkit falls back to its own internal
@@ -53,6 +54,20 @@ static class AnrSampleBootstrap
             panelSettings.themeStyleSheet = theme;
 
         return panelSettings;
+    }
+
+    /// <summary>
+    /// UIDocument clones the UXML into a TemplateContainer, and neither it nor the document root
+    /// grows by default - without this the UI is only as tall as its content and the event log
+    /// stops short of the bottom of the screen.
+    /// </summary>
+    static void StretchToPanel(VisualElement root)
+    {
+        if (root == null)
+            return;
+
+        root.style.flexGrow = 1;
+        root.Query<TemplateContainer>().ForEach(container => container.style.flexGrow = 1);
     }
 
     /// <summary>
