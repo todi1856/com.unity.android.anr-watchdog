@@ -18,6 +18,10 @@ TestProjects~/**/*.log
 TestProjects~/**/.vsconfig
 TestProjects~/**/Export/
 
+# Gradle and CMake output from the .androidlib plugin
+Runtime/Plugins/Android/**/build/
+Runtime/Plugins/Android/**/.cxx/
+
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be commited to version control.
 *.blend1
 *.blend1.meta
