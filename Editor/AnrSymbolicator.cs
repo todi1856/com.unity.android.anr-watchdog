@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnityEngine;
@@ -23,6 +24,12 @@ namespace Unity.Android
 
             /// <summary>How many further frames were inlined into this one.</summary>
             public int inlinedFrames;
+
+            /// <summary>
+            /// True when the name came from the symbol table rather than debug info: the nearest
+            /// preceding function plus an offset, with no source location and no inlined frames.
+            /// </summary>
+            public bool fromSymbolTable;
         }
 
         public struct Summary
@@ -85,14 +92,26 @@ namespace Unity.Android
 
                 // One process per library with every address on stdin - a call per frame turns a
                 // report with a thousand frames into a thousand process launches.
+                // Only options that have been stable across NDK versions: an option this build of
+                // llvm-symbolizer rejects makes it exit without output, which looks exactly like a
+                // library with no debug info.
                 var output = RunProcess(symbolizer,
                     $"--obj=\"{symbolFile}\" --functions=short --demangle --inlining=true --output-style=LLVM",
                     BuildAddressList(library.Value));
 
-                if (output == null)
-                    continue;
+                var fromDebugInfo = output != null ? Parse(output, library.Key, library.Value) : 0;
+                summary.resolved += fromDebugInfo;
 
-                summary.resolved += Parse(output, library.Key, library.Value);
+                if (fromDebugInfo == 0)
+                    summary.messages.Add($"{library.Key}: llvm-symbolizer resolved nothing - check the console for its error output.");
+
+                // Libraries stripped of DWARF still carry a symbol table - libunity.so is the
+                // usual case - so anything the symbolizer left unresolved gets a second pass
+                // straight against the symbol table.
+                var fromTable = ResolveFromSymbolTable(ndkRoot, symbolFile, library.Key, library.Value);
+                summary.resolved += fromTable;
+                if (fromTable > 0)
+                    summary.messages.Add($"{library.Key}: {fromTable} addresses named from the symbol table only, without source lines.");
             }
 
             return summary;
@@ -177,6 +196,120 @@ namespace Unity.Android
             }
 
             return resolved;
+        }
+
+        readonly struct TextSymbol
+        {
+            public readonly long address;
+            public readonly long size;
+            public readonly string name;
+
+            public TextSymbol(long address, long size, string name)
+            {
+                this.address = address;
+                this.size = size;
+                this.name = name;
+            }
+        }
+
+        // Address, size, type, name - llvm-nm --print-size --numeric-sort output. Only function
+        // symbols are of interest: T/t for text, W/w for weak definitions.
+        static readonly Regex k_NmLine = new Regex(@"^(?<address>[0-9a-fA-F]+)\s+(?<size>[0-9a-fA-F]+)\s+(?<type>[TtWw])\s+(?<name>.+)$");
+
+        /// <summary>
+        /// Names addresses the symbolizer could not resolve by looking them up in the library's
+        /// symbol table. This is what a library with a .symtab but no DWARF can give: the function
+        /// an address falls inside, and how far into it - no file, no line, no inlined frames.
+        /// </summary>
+        int ResolveFromSymbolTable(string ndkRoot, string symbolFile, string library, List<long> addresses)
+        {
+            var unresolved = addresses.Where(address => !m_Symbols.ContainsKey(Key(library, address))).ToList();
+            if (unresolved.Count == 0)
+                return 0;
+
+            var nm = AndroidToolchain.FindLlvmTool(ndkRoot, "llvm-nm");
+            if (nm == null)
+                return 0;
+
+            var output = RunProcess(nm, $"--defined-only --demangle --numeric-sort --print-size \"{symbolFile}\"");
+            if (string.IsNullOrEmpty(output))
+                return 0;
+
+            var symbols = ParseSymbolTable(output);
+            if (symbols.Count == 0)
+                return 0;
+
+            var resolved = 0;
+            foreach (var address in unresolved)
+            {
+                var index = FindContainingSymbol(symbols, address);
+                if (index < 0)
+                    continue;
+
+                var symbol = symbols[index];
+                var offset = address - symbol.address;
+
+                // Past the end of the function means the address sits in padding or in a function
+                // the table does not cover - a wrong name is worse than no name.
+                if (symbol.size > 0 && offset >= symbol.size)
+                    continue;
+
+                m_Symbols[Key(library, address)] = new Symbol
+                {
+                    function = offset == 0 ? symbol.name : $"{symbol.name} +0x{offset:x}",
+                    source = string.Empty,
+                    fromSymbolTable = true
+                };
+                resolved++;
+            }
+
+            return resolved;
+        }
+
+        static List<TextSymbol> ParseSymbolTable(string output)
+        {
+            var symbols = new List<TextSymbol>();
+
+            foreach (var line in output.Replace("\r\n", "\n").Split('\n'))
+            {
+                var match = k_NmLine.Match(line);
+                if (!match.Success)
+                    continue;
+
+                if (!long.TryParse(match.Groups["address"].Value, System.Globalization.NumberStyles.HexNumber, null, out var address))
+                    continue;
+                long.TryParse(match.Groups["size"].Value, System.Globalization.NumberStyles.HexNumber, null, out var size);
+
+                symbols.Add(new TextSymbol(address, size, match.Groups["name"].Value));
+            }
+
+            // --numeric-sort already orders these, but the parse must not depend on it.
+            symbols.Sort((left, right) => left.address.CompareTo(right.address));
+            return symbols;
+        }
+
+        /// <summary>Index of the last symbol starting at or before the address, or -1.</summary>
+        static int FindContainingSymbol(List<TextSymbol> symbols, long address)
+        {
+            var low = 0;
+            var high = symbols.Count - 1;
+            var found = -1;
+
+            while (low <= high)
+            {
+                var middle = low + (high - low) / 2;
+                if (symbols[middle].address <= address)
+                {
+                    found = middle;
+                    low = middle + 1;
+                }
+                else
+                {
+                    high = middle - 1;
+                }
+            }
+
+            return found;
         }
 
         /// <summary>

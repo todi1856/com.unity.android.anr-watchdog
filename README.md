@@ -93,6 +93,8 @@ llvm-readelf --notes libunity.sym.so | grep "Build ID"
 
 The metadata table shows every field of the report; the tabs switch between Java and native threads, and selecting a thread shows its stack. After resolving, native frames gain a function name and a `file:line`, with `(+N inlined)` where the compiler inlined further frames into one address.
 
+A library stripped of DWARF but still carrying a symbol table - which is what `libunity.so` normally is - resolves to function names anyway: anything `llvm-symbolizer` leaves unresolved gets a second pass through `llvm-nm`, naming the function an address falls inside plus its offset (`SomeFunction +0x24`). Those frames show `<symbol table only, no line info>` as their source, since a symbol table has no file or line data and cannot recover inlined frames.
+
 Resolution runs `llvm-symbolizer` from the NDK the editor is configured with - one process per library, with all of that library's addresses on stdin, so a thousand-frame report costs a handful of process launches rather than a thousand. Symbol files are matched by name, accepting `libunity.so`, `libunity.sym.so`, `libunity.so.debug` and similar, preferring the subfolder that matches the report's ABI. Each library's `buildId` is checked against the symbol file with `llvm-readelf`, and a mismatch is reported rather than silently producing plausible but wrong names.
 
 ## How it works

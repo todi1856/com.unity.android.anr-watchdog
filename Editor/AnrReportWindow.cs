@@ -342,7 +342,14 @@ namespace Unity.Android
             m_NativeStack.columns[k_Source].bindCell = (element, i) =>
             {
                 var frame = NativeFrame(i);
-                Text(element, m_Symbolicator.TryGetSymbol(frame.libraryName, frame.address, out var symbol) ? symbol.source : string.Empty);
+                if (!m_Symbolicator.TryGetSymbol(frame.libraryName, frame.address, out var symbol))
+                {
+                    Text(element, string.Empty);
+                    return;
+                }
+
+                // Says why there is no file:line rather than leaving the cell blank.
+                Text(element, symbol.fromSymbolTable ? "<symbol table only, no line info>" : symbol.source);
             };
         }
 
