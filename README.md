@@ -83,6 +83,18 @@ The `buildId` identifies the exact binary an address came from, so a symbol serv
 llvm-readelf --notes libunity.sym.so | grep "Build ID"
 ```
 
+## Report viewer (Editor)
+
+**Window → Analysis → Android ANR Report** opens a report from disk and symbolicates it.
+
+1. **Browse** to an `anr-*.json` pulled off the device.
+2. **Browse** to the folder holding the unstripped libraries - the contents of the build's `symbols.zip`, with its per-ABI subfolders left as they are.
+3. **Resolve symbols**.
+
+The metadata table shows every field of the report; the tabs switch between Java and native threads, and selecting a thread shows its stack. After resolving, native frames gain a function name and a `file:line`, with `(+N inlined)` where the compiler inlined further frames into one address.
+
+Resolution runs `llvm-symbolizer` from the NDK the editor is configured with - one process per library, with all of that library's addresses on stdin, so a thousand-frame report costs a handful of process launches rather than a thousand. Symbol files are matched by name, accepting `libunity.so`, `libunity.sym.so`, `libunity.so.debug` and similar, preferring the subfolder that matches the report's ABI. Each library's `buildId` is checked against the symbol file with `llvm-readelf`, and a mismatch is reported rather than silently producing plausible but wrong names.
+
 ## How it works
 
 * `MainThreadWatchdog` (Java) posts a ticker `Runnable` to the main `Looper`. If the ticker has not run for `anrTimeoutMs`, it serializes `Thread.getAllStackTraces()` and the device context to JSON and calls into native code.
@@ -94,6 +106,11 @@ llvm-readelf --notes libunity.sym.so | grep "Build ID"
 ## Package layout
 
 ```
+Editor/
+  AnrReportWindow.cs                  # report viewer and symbolication UI
+  AnrReportWindow.uxml
+  AnrSymbolicator.cs                  # batched llvm-symbolizer calls, build id verification
+  AndroidToolchain.cs                 # finds the NDK and its LLVM tools
 Runtime/
   AnrWatchdog.cs                      # public API
   AnrWatchdogSettings.cs
