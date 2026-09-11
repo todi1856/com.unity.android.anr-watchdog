@@ -19,3 +19,9 @@ The UI is created at runtime by `AnrSampleBootstrap`, so any scene works - in th
 * **Bottom panel** - the event log: lifecycle callbacks, long Unity frames, stalls as they are triggered, and a summary of every ANR report the watchdog produces.
 
 Because the Unity player loop runs on a different thread from the Android UI thread, the app keeps rendering while the UI thread is stalled - you can watch the report arrive in the log a few seconds after pressing the button.
+
+## Working on the report viewer in the Editor
+
+The watchdog only runs in an Android player, so in the Editor there is never a real report. `AnrSampleReportFixture` (compiled only under `UNITY_EDITOR`) supplies a synthetic one instead: pressing **View last report** in Play mode opens it right away, marked `ANR (sample data, Editor only)` on its first line.
+
+It is built from a fixed seed and is deliberately the size of a real report from a phone - 20 Java threads, 61 native ones, around a thousand lines - so layout, scrolling and virtualization behave the same as on device. A real report replaces it as soon as one arrives.

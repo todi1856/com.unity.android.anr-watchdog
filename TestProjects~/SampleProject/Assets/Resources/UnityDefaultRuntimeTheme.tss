@@ -1,0 +1,6 @@
+/*
+    The runtime panel is created in code, and PanelSettings requires a theme style sheet - without
+    one it warns and controls render unstyled. This pulls in Unity's built-in runtime theme; the
+    sample's own AnrSampleStyles.uss is applied on top of it.
+*/
+@import url("unity-theme://default");

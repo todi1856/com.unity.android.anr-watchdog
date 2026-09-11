@@ -26,6 +26,7 @@
 
             <ui:VisualElement class="button-row">
                 <ui:Button name="toggle-watchdog" text="Stop watchdog" class="button" />
+                <ui:Button name="view-report" text="View last report" class="button" />
                 <ui:Button name="clear-log" text="Clear log" class="button" />
             </ui:VisualElement>
 
@@ -41,6 +42,19 @@
             <ui:ScrollView name="log-scroll" class="log-scroll">
                 <ui:VisualElement name="log-entries" class="log-entries" />
             </ui:ScrollView>
+        </ui:VisualElement>
+
+        <!-- Full view of the last report, hidden until there is one to show. -->
+        <ui:VisualElement name="report-view" class="overlay hidden">
+            <ui:VisualElement class="overlay-header">
+                <ui:Label name="report-title" class="subtitle" />
+                <ui:Button name="close-report" text="Close" class="button button--compact" />
+            </ui:VisualElement>
+            <!--
+                A ListView of single-line items: it virtualizes a report with a thousand stack
+                frames, and fixed-height rows keep every line on its own baseline.
+            -->
+            <ui:ListView name="report-list" class="report-list" fixed-item-height="26" />
         </ui:VisualElement>
 
     </ui:VisualElement>

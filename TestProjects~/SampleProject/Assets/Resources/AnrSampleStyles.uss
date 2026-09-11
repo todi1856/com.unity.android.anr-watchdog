@@ -144,3 +144,116 @@
 .log-entry--lifecycle {
     color: rgb(130, 200, 255);
 }
+
+/* Full report viewer, laid over the whole UI. */
+
+.overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    padding: 16px;
+    background-color: rgb(16, 18, 21);
+}
+
+.hidden {
+    display: none;
+}
+
+.overlay-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.button--compact {
+    flex-grow: 0;
+    flex-basis: auto;
+    width: 160px;
+    height: 60px;
+    font-size: 22px;
+}
+
+.report-list {
+    flex-grow: 1;
+    background-color: rgb(12, 13, 15);
+    border-width: 1px;
+    border-color: rgb(52, 57, 64);
+    border-radius: 6px;
+}
+
+/*
+    One row per line, never wrapped. No per-row clipping or ellipsis on purpose: both make the
+    text generator re-truncate on every bind, which is what a fast scroll does hundreds of times
+    a second. The list viewport clips the overflow instead.
+*/
+.report-line {
+    font-size: 18px;
+    color: rgb(198, 205, 214);
+    padding-left: 8px;
+    padding-right: 8px;
+    white-space: nowrap;
+    -unity-text-align: middle-left;
+}
+
+/* Per-line colour, weight and size are set inline in AnrSampleWindow.bindItem. */
+
+/*
+    Scrollbars are part of the theme style sheet this panel does not have, so without these rules
+    the scrollers exist but draw nothing. Applies to the event log and the report list alike.
+*/
+
+.unity-scroll-view__vertical-scroller {
+    width: 18px;
+    background-color: rgb(24, 26, 30);
+    border-left-width: 1px;
+    border-left-color: rgb(52, 57, 64);
+}
+
+.unity-scroll-view__horizontal-scroller {
+    height: 18px;
+    background-color: rgb(24, 26, 30);
+    border-top-width: 1px;
+    border-top-color: rgb(52, 57, 64);
+}
+
+/* The arrow buttons are of no use on a touch screen. */
+.unity-scroller__low-button,
+.unity-scroller__high-button {
+    display: none;
+}
+
+.unity-scroller__slider {
+    flex-grow: 1;
+    margin: 0;
+}
+
+.unity-base-slider__tracker {
+    background-color: rgb(20, 22, 25);
+    border-width: 0;
+}
+
+/* Position and length along the scroll axis are set by the slider itself. */
+.unity-base-slider--vertical .unity-base-slider__dragger {
+    width: 10px;
+    left: 3px;
+    min-height: 48px;
+    background-color: rgb(112, 120, 130);
+    border-width: 0;
+    border-radius: 5px;
+}
+
+.unity-base-slider--horizontal .unity-base-slider__dragger {
+    height: 10px;
+    top: 3px;
+    min-width: 48px;
+    background-color: rgb(112, 120, 130);
+    border-width: 0;
+    border-radius: 5px;
+}
+
+.unity-base-slider__dragger:hover {
+    background-color: rgb(140, 148, 158);
+}

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Unity.Android;
 using UnityEngine;
@@ -33,8 +34,15 @@ public class AnrSampleWindow : MonoBehaviour
     Label m_LogCount;
     Slider m_StallDuration;
     Button m_ToggleWatchdog;
+    Button m_ViewReport;
     ScrollView m_LogScroll;
     VisualElement m_LogEntries;
+    VisualElement m_ReportView;
+    ListView m_ReportList;
+    Label m_ReportTitle;
+
+    AnrReport m_LastReport;
+    List<AnrReportView.Line> m_ReportLines = new List<AnrReportView.Line>();
 
     AnrWatchdogSettings m_Settings = AnrWatchdogSettings.Default;
 
@@ -64,8 +72,14 @@ public class AnrSampleWindow : MonoBehaviour
         m_LogCount = root.Q<Label>("log-count");
         m_StallDuration = root.Q<Slider>("stall-duration");
         m_ToggleWatchdog = root.Q<Button>("toggle-watchdog");
+        m_ViewReport = root.Q<Button>("view-report");
         m_LogScroll = root.Q<ScrollView>("log-scroll");
         m_LogEntries = root.Q<VisualElement>("log-entries");
+        m_ReportView = root.Q<VisualElement>("report-view");
+        m_ReportList = root.Q<ListView>("report-list");
+        m_ReportTitle = root.Q<Label>("report-title");
+
+        SetUpReportList();
 
         m_StallDuration.RegisterValueChangedCallback(_ => RefreshStallDurationLabel());
         RefreshStallDurationLabel();
@@ -73,11 +87,24 @@ public class AnrSampleWindow : MonoBehaviour
         root.Q<Button>("stall-ui-thread").clicked += StallAndroidUiThread;
         root.Q<Button>("stall-main-thread").clicked += StallUnityMainThread;
         root.Q<Button>("clear-log").clicked += ClearLog;
+        root.Q<Button>("close-report").clicked += HideReport;
         m_ToggleWatchdog.clicked += ToggleWatchdog;
+        m_ViewReport.clicked += ShowReport;
+        m_ViewReport.SetEnabled(false);
+
+#if UNITY_EDITOR
+        // The watchdog only runs in an Android player, so in the Editor there is never a real
+        // report - preload a synthetic one so the viewer can be worked on without deploying.
+        m_LastReport = AnrSampleReportFixture.Create();
+        m_ViewReport.SetEnabled(true);
+#endif
 
         AnrWatchdog.AnrDetected += OnAnrDetected;
 
         AppendLog(LogKind.Info, $"Sample started, Unity {Application.unityVersion}");
+#if UNITY_EDITOR
+        AppendLog(LogKind.Info, "Editor: 'View last report' shows sample data until a real report arrives");
+#endif
         StartWatchdog();
         RefreshStatus();
     }
@@ -179,9 +206,75 @@ public class AnrSampleWindow : MonoBehaviour
                 : "Watchdog did not start - an Android player is required");
     }
 
+    void SetUpReportList()
+    {
+        m_ReportList.itemsSource = m_ReportLines;
+        m_ReportList.selectionType = SelectionType.None;
+        m_ReportList.makeItem = () =>
+        {
+            var label = new Label();
+            label.AddToClassList("report-line");
+            return label;
+        };
+        // Inline styles rather than class toggles: every class change re-runs selector matching
+        // for that element, and binding happens for every row that scrolls into view.
+        m_ReportList.bindItem = (element, index) =>
+        {
+            var line = m_ReportLines[index];
+            var label = (Label)element;
+
+            label.text = line.Text;
+            label.style.color = ColorFor(line.Kind);
+            label.style.unityFontStyleAndWeight = line.Kind == AnrReportView.LineKind.Section ||
+                                                  line.Kind == AnrReportView.LineKind.Thread ||
+                                                  line.Kind == AnrReportView.LineKind.MainThread
+                ? FontStyle.Bold
+                : FontStyle.Normal;
+            label.style.fontSize = line.Kind == AnrReportView.LineKind.Section ? 22 : 18;
+        };
+    }
+
+    static Color ColorFor(AnrReportView.LineKind kind) => kind switch
+    {
+        AnrReportView.LineKind.Section => new Color32(240, 243, 247, 255),
+        AnrReportView.LineKind.Thread => new Color32(130, 200, 255, 255),
+        AnrReportView.LineKind.MainThread => new Color32(255, 138, 128, 255),
+        AnrReportView.LineKind.Frame => new Color32(176, 183, 192, 255),
+        AnrReportView.LineKind.Note => new Color32(120, 127, 136, 255),
+        _ => new Color32(198, 205, 214, 255)
+    };
+
+    void ShowReport()
+    {
+        if (m_LastReport == null)
+            return;
+
+        // Show first, fill second: a subtree with display:none is not laid out, and elements
+        // measured in that state keep a zero height and end up drawn on top of each other.
+        m_ReportView.RemoveFromClassList("hidden");
+
+        m_ReportTitle.text = AnrReportView.Title(m_LastReport);
+
+        m_ReportLines.Clear();
+        m_ReportLines.AddRange(AnrReportView.Build(m_LastReport));
+        m_ReportList.Rebuild();
+        m_ReportList.ScrollToItem(0);
+    }
+
+    void HideReport()
+    {
+        m_ReportView.AddToClassList("hidden");
+    }
+
     void OnAnrDetected(AnrReport report)
     {
         m_ReportCount++;
+        m_LastReport = report;
+        m_ViewReport.SetEnabled(true);
+
+        // Keep the overlay on the newest report if it happens to be open.
+        if (!m_ReportView.ClassListContains("hidden"))
+            ShowReport();
 
         var mainThread = report.javaThreads?.FirstOrDefault(thread => thread.name == "main");
         var topFrame = mainThread?.stackTrace is { Length: > 0 }

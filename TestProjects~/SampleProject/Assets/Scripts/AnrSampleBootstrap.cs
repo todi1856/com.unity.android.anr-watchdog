@@ -1,4 +1,6 @@
+using System;
 using UnityEngine;
+using UnityEngine.TextCore.Text;
 using UnityEngine.UIElements;
 
 /// <summary>
@@ -18,7 +20,7 @@ static class AnrSampleBootstrap
         }
 
         var host = new GameObject("ANR Watchdog Sample");
-        Object.DontDestroyOnLoad(host);
+        UnityEngine.Object.DontDestroyOnLoad(host);
 
         var document = host.AddComponent<UIDocument>();
         document.panelSettings = CreatePanelSettings();
@@ -47,11 +49,13 @@ static class AnrSampleBootstrap
         panelSettings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
         panelSettings.match = 0.5f;
 
-        // Only present if the project happens to contain one. The sample's style sheet sets every
-        // value it needs, so running without a theme is fine.
+        // PanelSettings warns and renders controls unstyled without a theme. The project ships
+        // Resources/UnityDefaultRuntimeTheme.tss for exactly this.
         var theme = Resources.Load<ThemeStyleSheet>("UnityDefaultRuntimeTheme");
         if (theme != null)
             panelSettings.themeStyleSheet = theme;
+        else
+            Debug.LogWarning("Resources/UnityDefaultRuntimeTheme.tss is missing, the sample UI will render unstyled.");
 
         return panelSettings;
     }
@@ -70,8 +74,15 @@ static class AnrSampleBootstrap
         root.Query<TemplateContainer>().ForEach(container => container.style.flexGrow = 1);
     }
 
+    // Kept alive for the lifetime of the app - the font asset is generated at runtime and would
+    // otherwise be collected, taking its glyph atlas with it.
+    static FontAsset s_FontAsset;
+
     /// <summary>
     /// Without a theme style sheet there is no default font, and every label would render empty.
+    /// An SDF font asset is used rather than the legacy Font it is built from: the legacy text
+    /// path rebuilds its dynamic atlas as new glyphs appear, which shows up as stutter while
+    /// scrolling a long list.
     /// </summary>
     static void ApplyFallbackFont(VisualElement root)
     {
@@ -81,8 +92,24 @@ static class AnrSampleBootstrap
         var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (font == null)
             font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        if (font != null)
-            root.style.unityFontDefinition = FontDefinition.FromFont(font);
+        if (font == null)
+            return;
+
+        if (s_FontAsset == null)
+        {
+            try
+            {
+                s_FontAsset = FontAsset.CreateFontAsset(font);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"Could not create an SDF font asset, falling back to the legacy font: {exception.Message}");
+            }
+        }
+
+        root.style.unityFontDefinition = s_FontAsset != null
+            ? FontDefinition.FromSDFFont(s_FontAsset)
+            : FontDefinition.FromFont(font);
     }
 
 }

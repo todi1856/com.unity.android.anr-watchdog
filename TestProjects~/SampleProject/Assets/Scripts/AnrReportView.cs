@@ -1,0 +1,122 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Unity.Android;
+using UnityEngine.UIElements;
+
+/// <summary>
+/// Flattens an <see cref="AnrReport"/> - metadata plus every thread and its stack - into one line
+/// per row, ready to be shown in a virtualized <see cref="ListView"/>.
+/// </summary>
+static class AnrReportView
+{
+    public enum LineKind
+    {
+        Field,
+        Section,
+        Thread,
+        MainThread,
+        Frame,
+        Note
+    }
+
+    public readonly struct Line
+    {
+        public readonly string Text;
+        public readonly LineKind Kind;
+
+        public Line(string text, LineKind kind)
+        {
+            Text = text;
+            Kind = kind;
+        }
+    }
+
+    public static string Title(AnrReport report) => $"ANR report - {report.reportTimeStamp}";
+
+    public static List<Line> Build(AnrReport report)
+    {
+        var lines = new List<Line>(512);
+
+        Add(lines, LineKind.Field, $"Type: {report.reportType}");
+        Add(lines, LineKind.Field, $"Stalled for {report.anrTimeMs} ms");
+        Add(lines, LineKind.Field, $"Package: {report.packageName}   Context: {report.contextClassName}");
+        Add(lines, LineKind.Field, $"Unity {report.unityVersion}   {report.scriptingBackend}   {report.buildType}");
+        Add(lines, LineKind.Field, $"Device: {report.deviceModel}   API {report.deviceApiLevel}   {report.abi}");
+        Add(lines, LineKind.Field, $"Fingerprint: {report.deviceFingerPrint}");
+        Add(lines, LineKind.Field, $"Orientation: {report.orientation}   Multi window: {report.multiWindow}");
+        Add(lines, LineKind.Field, $"Process {report.processId}   User {report.userId}");
+
+        AddJavaThreads(lines, report);
+        AddNativeThreads(lines, report);
+
+        return lines;
+    }
+
+    static void AddJavaThreads(List<Line> lines, AnrReport report)
+    {
+        var threads = report.javaThreads ?? Array.Empty<AnrReport.JavaThread>();
+        Add(lines, LineKind.Section, $"Java threads ({threads.Length})");
+
+        // The stuck one is what the report is about, so it goes first.
+        foreach (var thread in threads.OrderBy(t => IsMainJavaThread(t) ? 0 : 1).ThenBy(t => t.name))
+        {
+            Add(lines, IsMainJavaThread(thread) ? LineKind.MainThread : LineKind.Thread,
+                $"{thread.name}  (id {thread.id}, {thread.state}, priority {thread.priority})");
+
+            AddFrames(lines, thread.stackTrace?.Select(FormatJavaFrame));
+        }
+    }
+
+    static void AddNativeThreads(List<Line> lines, AnrReport report)
+    {
+        var threads = report.nativeThreads ?? Array.Empty<AnrReport.NativeThread>();
+        Add(lines, LineKind.Section, $"Native threads ({threads.Length})");
+
+        foreach (var thread in threads.OrderBy(t => t.id == report.processId ? 0 : 1).ThenBy(t => t.name))
+        {
+            Add(lines, thread.id == report.processId ? LineKind.MainThread : LineKind.Thread,
+                $"{thread.name}  (tid {thread.id}, {thread.state}, priority {thread.priority})");
+
+            AddFrames(lines, thread.stackTrace?.Select(FormatNativeFrame));
+        }
+    }
+
+    static void AddFrames(List<Line> lines, IEnumerable<string> frames)
+    {
+        var count = 0;
+        if (frames != null)
+        {
+            foreach (var frame in frames)
+            {
+                Add(lines, LineKind.Frame, frame);
+                count++;
+            }
+        }
+
+        // An empty native stack is information in itself - that thread never answered the
+        // capture signal.
+        if (count == 0)
+            Add(lines, LineKind.Note, "    <no frames captured>");
+    }
+
+    static string FormatJavaFrame(AnrReport.JavaStackFrame frame)
+    {
+        var location = frame.lineNumber >= 0
+            ? $"{frame.fileName}:{frame.lineNumber}"
+            : string.IsNullOrEmpty(frame.fileName) ? "Native Method" : frame.fileName;
+
+        return $"    at {frame.className}.{frame.methodName}({location})";
+    }
+
+    static string FormatNativeFrame(AnrReport.NativeStackFrame frame, int index)
+    {
+        var library = string.IsNullOrEmpty(frame.libraryName) ? "<unknown>" : Path.GetFileName(frame.libraryName);
+        return $"    #{index:00}  0x{frame.address:x16}  {library}";
+    }
+
+    static bool IsMainJavaThread(AnrReport.JavaThread thread) => thread.name == "main";
+
+    static void Add(List<Line> lines, LineKind kind, string text) => lines.Add(new Line(text, kind));
+}
