@@ -1,5 +1,6 @@
 #include "NativeThreads.h"
 #include "Log.h"
+#include "Modules.h"
 #include "ProcUtils.h"
 
 #include <atomic>
@@ -145,7 +146,7 @@ namespace anrwatchdog
             return threads;
         }
 
-        void ResolveFrames(NativeThread& thread, size_t frameCount)
+        void ResolveFrames(NativeThread& thread, size_t frameCount, const std::vector<LoadedModule>& modules)
         {
             thread.stackTrace.reserve(frameCount);
             for (size_t i = 0; i < frameCount; i++)
@@ -159,9 +160,14 @@ namespace anrwatchdog
                 Dl_info info;
                 if (dladdr(reinterpret_cast<void*>(pc), &info) != 0 && info.dli_fbase != nullptr)
                 {
-                    frame.address = static_cast<uint64_t>(pc - reinterpret_cast<uintptr_t>(info.dli_fbase));
+                    const auto base = reinterpret_cast<uintptr_t>(info.dli_fbase);
+                    frame.address = static_cast<uint64_t>(pc - base);
                     if (info.dli_fname != nullptr)
                         frame.libraryName = info.dli_fname;
+
+                    const LoadedModule* module = FindModuleByBase(modules, base);
+                    if (module != nullptr)
+                        frame.buildId = module->buildId;
                 }
 
                 thread.stackTrace.push_back(frame);
@@ -178,6 +184,10 @@ namespace anrwatchdog
             return threads;
 
         ANR_LOG_INFO("Collecting stacktraces for %zu native threads", threads.size());
+
+        // Taken once: the mapping from load address to library and build id is the same for every
+        // thread, and walking it per frame would be wasted work.
+        const std::vector<LoadedModule> modules = CollectLoadedModules();
 
         if (sem_init(&s_CaptureDone, 0, 0) == -1)
         {
@@ -227,7 +237,7 @@ namespace anrwatchdog
             const size_t frameCount = s_FrameCount.load(std::memory_order_acquire);
             s_TargetTid.store(0, std::memory_order_release);
 
-            ResolveFrames(thread, frameCount);
+            ResolveFrames(thread, frameCount, modules);
         }
 
         if (sigaction(CaptureSignal(), &oldAction, nullptr) == -1)

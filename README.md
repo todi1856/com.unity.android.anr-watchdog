@@ -68,10 +68,18 @@ A report contains device and build context (`packageName`, `unityVersion`, `devi
 * **javaThreads** - name, id, state, priority and the Java stack of every thread, from `Thread.getAllStackTraces()`.
 * **nativeThreads** - name, id, state (from `/proc/<tid>/status`), priority (from `/proc/<tid>/stat`) and the native stack of every thread in the process.
 
-Native frames carry an `address` relative to the load address of `libraryName`, not a function name: resolving symbols on device costs more than a second for a full process dump. Symbolicate offline against the unstripped binaries from the build's `symbols.zip`, for example:
+Native frames carry an `address` relative to the load address of `libraryName` plus the library's GNU `buildId`, rather than a function name: resolving symbols on device costs more than a second for a full process dump, and `.dynsym` - all that is available at runtime - would name internal Unity and IL2CPP frames wrongly rather than not at all.
+
+Symbolicate offline against the unstripped binaries from the build's `symbols.zip`, which gives function names, file and line, and inlined frames:
 
 ```
-llvm-addr2line -f -C -e libunity.so <address>
+llvm-symbolizer --obj=libunity.sym.so 0x<address>
+```
+
+The `buildId` identifies the exact binary an address came from, so a symbol server can pick the matching library even across builds. Compare it against a local file with:
+
+```
+llvm-readelf --notes libunity.sym.so | grep "Build ID"
 ```
 
 ## How it works
@@ -79,6 +87,7 @@ llvm-addr2line -f -C -e libunity.so <address>
 * `MainThreadWatchdog` (Java) posts a ticker `Runnable` to the main `Looper`. If the ticker has not run for `anrTimeoutMs`, it serializes `Thread.getAllStackTraces()` and the device context to JSON and calls into native code.
 * The native library enumerates `/proc/self/task`, installs a handler for a real-time signal and interrupts each thread in turn. Each interrupted thread unwinds itself with `_Unwind_Backtrace` into a preallocated buffer, then signals the watchdog thread through a semaphore.
 * Addresses are resolved to libraries with `dladdr` afterwards, on the watchdog thread - the signal handler itself allocates nothing and takes no locks, because a thread stalled mid-ANR may well be holding the allocator's.
+* Build ids come from one `dl_iterate_phdr` pass per report, read out of each library's mapped `PT_NOTE` segment - no file access, and it works on stripped libraries.
 * The native dump is merged into the Java report and written to disk.
 
 ## Package layout

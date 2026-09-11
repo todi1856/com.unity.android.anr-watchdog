@@ -46,6 +46,13 @@ namespace Unity.Android
             public long address;
 
             public string libraryName;
+
+            /// <summary>
+            /// GNU build id of <see cref="libraryName"/> as hex. Identifies the exact binary the
+            /// address came from, so a symbol server can pick the matching unstripped library.
+            /// Empty when the library carries no build id note.
+            /// </summary>
+            public string buildId;
         }
 
         [Serializable]

@@ -13,6 +13,10 @@ namespace anrwatchdog
         // against the unstripped binary. Absolute pc when the address maps to no known library.
         uint64_t address = 0;
         std::string libraryName;
+
+        // GNU build id of the library, so the address can be matched to the exact binary that
+        // produced it. Empty when the library carries no build id note.
+        std::string buildId;
     };
 
     struct NativeThread

@@ -66,6 +66,8 @@ namespace
                 writer.Value(frame.address);
                 writer.Key("libraryName");
                 writer.Value(frame.libraryName);
+                writer.Key("buildId");
+                writer.Value(frame.buildId);
                 writer.EndObject();
             }
             writer.EndArray();

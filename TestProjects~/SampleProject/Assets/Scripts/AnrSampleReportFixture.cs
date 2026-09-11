@@ -207,11 +207,24 @@ static class AnrSampleReportFixture
             frames[i] = new AnrReport.NativeStackFrame
             {
                 address = (long)random.Next(0x1000, 0x7FFFFFF) * 4,
-                libraryName = library
+                libraryName = library,
+                buildId = BuildIdFor(library)
             };
         }
 
         return frames;
+    }
+
+    /// <summary>
+    /// Stable per-library build id, derived from the path so the same library always reports the
+    /// same 20-byte id - the shape a real GNU build id note has.
+    /// </summary>
+    static string BuildIdFor(string library)
+    {
+        var random = new Random(library.GetHashCode());
+        var bytes = new byte[20];
+        random.NextBytes(bytes);
+        return BitConverter.ToString(bytes).Replace("-", string.Empty).ToLowerInvariant();
     }
 
     static AnrReport.JavaThread JavaThread(string name, long id, string state, int priority,

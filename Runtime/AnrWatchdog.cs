@@ -115,6 +115,7 @@ namespace Unity.Android
                 try
                 {
                     File.Delete(file);
+                    Debug.Log($"Deleted ANR report '{file}' after reading it.");
                 }
                 catch (Exception exception)
                 {

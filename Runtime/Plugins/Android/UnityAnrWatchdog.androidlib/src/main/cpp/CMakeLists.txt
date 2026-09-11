@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(UnityAnrWatchdog SHARED
     AnrWatchdogJni.cpp
+    Modules.cpp
     NativeThreads.cpp
     ProcUtils.cpp)
 

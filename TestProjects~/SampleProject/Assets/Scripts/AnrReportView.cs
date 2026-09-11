@@ -48,10 +48,38 @@ static class AnrReportView
         Add(lines, LineKind.Field, $"Orientation: {report.orientation}   Multi window: {report.multiWindow}");
         Add(lines, LineKind.Field, $"Process {report.processId}   User {report.userId}");
 
+        AddModules(lines, report);
         AddJavaThreads(lines, report);
         AddNativeThreads(lines, report);
 
         return lines;
+    }
+
+    /// <summary>
+    /// Build ids are per library, so they are listed once here rather than repeated on every
+    /// frame - this is what an offline symbolicator needs to pick the matching binary.
+    /// </summary>
+    static void AddModules(List<Line> lines, AnrReport report)
+    {
+        var modules = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var thread in report.nativeThreads ?? Array.Empty<AnrReport.NativeThread>())
+        {
+            foreach (var frame in thread.stackTrace ?? Array.Empty<AnrReport.NativeStackFrame>())
+            {
+                if (!string.IsNullOrEmpty(frame.libraryName))
+                    modules[frame.libraryName] = frame.buildId;
+            }
+        }
+
+        if (modules.Count == 0)
+            return;
+
+        Add(lines, LineKind.Section, $"Modules ({modules.Count})");
+        foreach (var module in modules)
+        {
+            var buildId = string.IsNullOrEmpty(module.Value) ? "<no build id>" : module.Value;
+            Add(lines, LineKind.Frame, $"    {Path.GetFileName(module.Key)}   {buildId}");
+        }
     }
 
     static void AddJavaThreads(List<Line> lines, AnrReport report)
