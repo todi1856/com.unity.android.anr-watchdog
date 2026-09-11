@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <!--
+        Two stacked panels: live state and the controls that provoke an ANR on top, the event log
+        below. The style sheet is attached from code (AnrSampleBootstrap) so both assets can live
+        in Resources and be loaded without any scene wiring.
+    -->
+    <ui:VisualElement name="root" class="root">
+
+        <ui:VisualElement name="info-panel" class="panel info-panel">
+            <ui:Label text="ANR Watchdog Sample" class="title" />
+
+            <ui:Label name="status-watchdog" class="status" />
+            <ui:Label name="status-frame" class="status" />
+            <ui:Label name="status-lifecycle" class="status" />
+            <ui:Label name="status-reports" class="status" />
+            <ui:Label name="status-device" class="status" />
+
+            <ui:Label name="stall-duration-label" class="slider-label" />
+            <ui:Slider name="stall-duration" low-value="1" high-value="20" value="6" class="slider" />
+
+            <ui:VisualElement class="button-row">
+                <ui:Button name="stall-ui-thread" text="Stall Android UI thread" class="button button--danger" />
+                <ui:Button name="stall-main-thread" text="Stall Unity main thread" class="button button--danger" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="button-row">
+                <ui:Button name="toggle-watchdog" text="Stop watchdog" class="button" />
+                <ui:Button name="clear-log" text="Clear log" class="button" />
+            </ui:VisualElement>
+
+            <ui:Label name="hint" class="hint"
+                      text="Only the Android UI thread stall makes the watchdog fire - the Unity main thread is a different thread and Android does not watch it." />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="log-panel" class="panel log-panel">
+            <ui:VisualElement class="log-header">
+                <ui:Label text="Event log" class="subtitle" />
+                <ui:Label name="log-count" class="hint" />
+            </ui:VisualElement>
+            <ui:ScrollView name="log-scroll" class="log-scroll">
+                <ui:VisualElement name="log-entries" class="log-entries" />
+            </ui:ScrollView>
+        </ui:VisualElement>
+
+    </ui:VisualElement>
+</ui:UXML>

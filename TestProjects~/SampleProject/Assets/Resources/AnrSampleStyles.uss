@@ -1,0 +1,146 @@
+/*
+    Every value here is explicit - the panel is created at runtime and may have no theme style
+    sheet to inherit defaults from, so nothing relies on the built-in control styling.
+*/
+
+.root {
+    flex-grow: 1;
+    background-color: rgb(24, 26, 30);
+    color: rgb(228, 231, 235);
+}
+
+.panel {
+    padding: 16px;
+}
+
+.info-panel {
+    flex-grow: 0;
+    flex-shrink: 0;
+    border-bottom-width: 2px;
+    border-bottom-color: rgb(52, 57, 64);
+    background-color: rgb(30, 33, 38);
+}
+
+.log-panel {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-height: 120px;
+}
+
+.title {
+    font-size: 34px;
+    -unity-font-style: bold;
+    color: rgb(240, 243, 247);
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    font-size: 26px;
+    -unity-font-style: bold;
+    color: rgb(240, 243, 247);
+}
+
+.status {
+    font-size: 24px;
+    color: rgb(198, 205, 214);
+    margin-bottom: 2px;
+    white-space: normal;
+}
+
+.hint {
+    font-size: 20px;
+    color: rgb(140, 148, 158);
+    white-space: normal;
+}
+
+.slider-label {
+    font-size: 24px;
+    color: rgb(198, 205, 214);
+    margin-top: 10px;
+}
+
+.slider {
+    height: 44px;
+    margin-bottom: 4px;
+}
+
+.button-row {
+    flex-direction: row;
+    margin-top: 8px;
+}
+
+.button {
+    flex-grow: 1;
+    flex-basis: 0;
+    height: 84px;
+    margin: 0 4px 0 4px;
+    padding: 4px;
+    font-size: 24px;
+    -unity-font-style: bold;
+    white-space: normal;
+    color: rgb(240, 243, 247);
+    background-color: rgb(56, 62, 72);
+    border-width: 1px;
+    border-color: rgb(82, 90, 102);
+    border-radius: 8px;
+}
+
+.button:hover {
+    background-color: rgb(70, 78, 90);
+}
+
+.button:active {
+    background-color: rgb(42, 47, 55);
+}
+
+.button--danger {
+    background-color: rgb(120, 46, 46);
+    border-color: rgb(168, 68, 68);
+}
+
+.button--danger:hover {
+    background-color: rgb(142, 56, 56);
+}
+
+.button--danger:active {
+    background-color: rgb(96, 36, 36);
+}
+
+.log-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.log-scroll {
+    flex-grow: 1;
+    background-color: rgb(18, 20, 23);
+    border-width: 1px;
+    border-color: rgb(52, 57, 64);
+    border-radius: 6px;
+}
+
+.log-entries {
+    padding: 6px;
+}
+
+.log-entry {
+    font-size: 20px;
+    white-space: normal;
+    margin-bottom: 3px;
+    color: rgb(198, 205, 214);
+}
+
+.log-entry--anr {
+    color: rgb(255, 138, 128);
+    -unity-font-style: bold;
+}
+
+.log-entry--warning {
+    color: rgb(255, 205, 120);
+}
+
+.log-entry--lifecycle {
+    color: rgb(130, 200, 255);
+}

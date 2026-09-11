@@ -1,7 +1,10 @@
 {
   "dependencies": {
+    "com.rubix.unity.android.device-explorer": "https://github.com/Rubix1991/com.rubix.unity.android.device-explorer.git",
     "com.unity.android.anr-watchdog": "file:../../..",
     "com.unity.ide.visualstudio": "2.0.27",
-    "com.unity.mobile.android-logcat": "1.4.7"
+    "com.unity.mobile.android-logcat": "1.4.7",
+    "com.unity.modules.ui": "1.0.0",
+    "com.unity.modules.uielements": "1.0.0"
   }
 }
