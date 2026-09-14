@@ -2,6 +2,8 @@
 
 A utility for detecting **ANR** (Application Not Responding) conditions in Unity players running on Android, and for reporting where every thread was when the Android UI thread stopped responding.
 
+[**Walkthrough video**](https://www.youtube.com/watch?v=6cbU-XhTFic) - the watchdog firing on a device, the report it writes, and symbolicating the native stacks in the Editor.
+
 ### Which thread?
 
 Two different threads matter here, and the difference is the whole point of this package:
