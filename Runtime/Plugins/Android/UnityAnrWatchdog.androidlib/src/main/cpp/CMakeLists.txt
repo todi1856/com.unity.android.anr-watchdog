@@ -20,3 +20,10 @@ target_compile_options(UnityAnrWatchdog PRIVATE
     -fno-omit-frame-pointer)
 
 target_link_libraries(UnityAnrWatchdog log dl)
+
+# Android 15 and later can run with 16 KB memory pages, and a library whose LOAD segments are
+# aligned to the older 4 KB page size fails to load there. NDK r27 does this by default, older
+# ones do not, so the alignment is requested explicitly for every ABI.
+target_link_options(UnityAnrWatchdog PRIVATE
+    "-Wl,-z,max-page-size=16384"
+    "-Wl,-z,common-page-size=16384")
