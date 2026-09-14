@@ -1,0 +1,69 @@
+/*
+    Colours are kept to translucent black and white so the window reads correctly in both the
+    light and the dark editor skin.
+*/
+
+.root {
+    flex-grow: 1;
+}
+
+.header {
+    flex-shrink: 0;
+    padding: 4px 4px 5px 4px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(0, 0, 0, 0.35);
+}
+
+.path-row {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.path-field {
+    flex-grow: 1;
+    margin-right: 4px;
+}
+
+/* Line the two text fields up with each other rather than with their label lengths. */
+.path-field > .unity-base-field__label {
+    min-width: 52px;
+    width: 52px;
+}
+
+/* A fixed width, so the buttons form columns instead of sizing to their own labels. */
+.header-button {
+    width: 112px;
+    flex-shrink: 0;
+    margin-left: 2px;
+    margin-right: 0;
+}
+
+.pane {
+    flex-grow: 1;
+    min-width: 120px;
+    min-height: 80px;
+}
+
+.tabs {
+    flex-shrink: 0;
+}
+
+.filter {
+    flex-shrink: 0;
+    margin: 3px 4px 3px 4px;
+}
+
+.list {
+    flex-grow: 1;
+}
+
+.status {
+    flex-shrink: 0;
+    padding: 3px 6px 3px 6px;
+    border-top-width: 1px;
+    border-top-color: rgba(0, 0, 0, 0.35);
+    -unity-font-style: italic;
+    white-space: normal;
+    opacity: 0.85;
+}

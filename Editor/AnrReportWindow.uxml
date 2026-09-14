@@ -1,70 +1,79 @@
 <engine:UXML xmlns:engine="UnityEngine.UIElements" xmlns:editor="UnityEditor.UIElements">
-    <engine:VisualElement style="flex-grow: 1;">
+    <engine:VisualElement class="root">
 
-        <engine:VisualElement style="flex-direction: row; flex-shrink: 0;">
-            <engine:TextField label="Report" name="fieldReportPath" style="flex-grow: 1;" />
-            <engine:Button text="Browse" name="btnBrowseReport" />
-            <engine:Button text="Reload" name="btnReload" />
+        <engine:VisualElement class="header">
+            <engine:VisualElement class="path-row">
+                <engine:TextField label="Report" name="fieldReportPath" class="path-field" />
+                <engine:Button text="Browse" name="btnBrowseReport" class="header-button" />
+                <engine:Button text="Reload" name="btnReload" class="header-button" />
+            </engine:VisualElement>
+            <engine:VisualElement class="path-row">
+                <engine:TextField label="Symbols" name="fieldSymbolsPath" class="path-field" />
+                <engine:Button text="Browse" name="btnBrowseSymbols" class="header-button" />
+                <engine:Button text="Resolve symbols" name="btnResolve" class="header-button" />
+            </engine:VisualElement>
         </engine:VisualElement>
 
-        <engine:VisualElement style="flex-direction: row; flex-shrink: 0;">
-            <engine:TextField label="Symbols" name="fieldSymbolsPath" style="flex-grow: 1;" />
-            <engine:Button text="Browse" name="btnBrowseSymbols" />
-            <engine:Button text="Resolve symbols" name="btnResolve" />
-        </engine:VisualElement>
+        <!-- Report metadata above, threads and their stacks below, both resizable. -->
+        <engine:TwoPaneSplitView fixed-pane-index="0" fixed-pane-initial-dimension="150" orientation="Vertical">
 
-        <engine:Label name="labelStatus" style="margin: 4px 6px 4px 6px; white-space: normal; -unity-font-style: italic;" />
+            <engine:MultiColumnListView name="listMetadata" show-alternating-row-backgrounds="All" class="list">
+                <engine:Columns>
+                    <engine:Column name="Name" title="Field" width="220" />
+                    <engine:Column name="Value" title="Value" stretchable="true" />
+                </engine:Columns>
+            </engine:MultiColumnListView>
 
-        <engine:MultiColumnListView name="listMetadata" show-alternating-row-backgrounds="All" reorderable="false"
-                                    style="height: 150px; flex-shrink: 0; border-top-width: 1px; border-bottom-width: 1px; border-top-color: rgba(0, 0, 0, 0.4); border-bottom-color: rgba(0, 0, 0, 0.4);">
-            <engine:Columns>
-                <engine:Column name="Name" title="&lt;b&gt;Field&lt;/b&gt;" width="220" />
-                <engine:Column name="Value" title="&lt;b&gt;Value&lt;/b&gt;" stretchable="true" />
-            </engine:Columns>
-        </engine:MultiColumnListView>
+            <engine:VisualElement class="pane">
+                <engine:TabView name="tabThreads" class="tabs">
+                    <engine:Tab label="Java threads" name="tabJavaThreads" />
+                    <engine:Tab label="Native threads" name="tabNativeThreads" />
+                </engine:TabView>
 
-        <engine:TabView name="tabThreads" style="flex-shrink: 0;">
-            <engine:Tab label="Java threads" name="tabJavaThreads" />
-            <engine:Tab label="Native threads" name="tabNativeThreads" />
-        </engine:TabView>
+                <engine:TwoPaneSplitView fixed-pane-index="0" fixed-pane-initial-dimension="340" orientation="Horizontal">
 
-        <engine:VisualElement style="flex-grow: 1; flex-direction: row;">
+                    <engine:VisualElement class="pane">
+                        <!-- One filter per tab, so a search in the Java threads does not follow you
+                             into the native ones. Only the active tab's field is shown. -->
+                        <editor:ToolbarSearchField name="fieldJavaThreadFilter" class="filter" />
+                        <editor:ToolbarSearchField name="fieldNativeThreadFilter" class="filter" />
+                        <engine:MultiColumnListView name="listThreads" show-alternating-row-backgrounds="All" class="list">
+                            <engine:Columns>
+                                <engine:Column name="Name" title="Thread" stretchable="true" />
+                                <engine:Column name="Id" title="Id" width="64" />
+                                <engine:Column name="State" title="State" width="104" />
+                                <engine:Column name="Priority" title="Prio" width="48" />
+                                <engine:Column name="Frames" title="Frames" width="58" />
+                            </engine:Columns>
+                        </engine:MultiColumnListView>
+                    </engine:VisualElement>
 
-            <engine:VisualElement style="width: 34%; border-right-width: 1px; border-right-color: rgba(0, 0, 0, 0.4);">
-                <!-- One filter per tab, so a search in the Java threads does not follow you into
-                     the native ones. Only the active tab's field is shown. -->
-                <editor:ToolbarSearchField name="fieldJavaThreadFilter" style="margin: 2px 4px 2px 4px; flex-shrink: 0;" />
-                <editor:ToolbarSearchField name="fieldNativeThreadFilter" style="margin: 2px 4px 2px 4px; flex-shrink: 0;" />
-                <engine:MultiColumnListView name="listThreads" show-alternating-row-backgrounds="All" style="flex-grow: 1;">
-                    <engine:Columns>
-                        <engine:Column name="Name" title="&lt;b&gt;Thread&lt;/b&gt;" stretchable="true" />
-                        <engine:Column name="Id" title="&lt;b&gt;Id&lt;/b&gt;" width="70" />
-                        <engine:Column name="State" title="&lt;b&gt;State&lt;/b&gt;" width="110" />
-                        <engine:Column name="Priority" title="&lt;b&gt;Prio&lt;/b&gt;" width="50" />
-                        <engine:Column name="Frames" title="&lt;b&gt;Frames&lt;/b&gt;" width="60" />
-                    </engine:Columns>
-                </engine:MultiColumnListView>
+                    <engine:VisualElement class="pane">
+                        <engine:MultiColumnListView name="listJavaStack" show-alternating-row-backgrounds="All" class="list">
+                            <engine:Columns>
+                                <engine:Column name="Frame" title="#" width="38" />
+                                <engine:Column name="Class" title="Class" stretchable="true" />
+                                <engine:Column name="Method" title="Method" stretchable="true" />
+                                <engine:Column name="Source" title="Source" width="220" />
+                            </engine:Columns>
+                        </engine:MultiColumnListView>
+                        <engine:MultiColumnListView name="listNativeStack" show-alternating-row-backgrounds="All" class="list">
+                            <engine:Columns>
+                                <engine:Column name="Frame" title="#" width="38" />
+                                <engine:Column name="Address" title="Address" width="140" />
+                                <engine:Column name="Library" title="Library" width="170" />
+                                <engine:Column name="Function" title="Function" stretchable="true" />
+                                <engine:Column name="Source" title="Source" stretchable="true" />
+                            </engine:Columns>
+                        </engine:MultiColumnListView>
+                    </engine:VisualElement>
+
+                </engine:TwoPaneSplitView>
             </engine:VisualElement>
 
-            <engine:MultiColumnListView name="listJavaStack" show-alternating-row-backgrounds="All" style="flex-grow: 1;">
-                <engine:Columns>
-                    <engine:Column name="Frame" title="&lt;b&gt;#&lt;/b&gt;" width="40" />
-                    <engine:Column name="Class" title="&lt;b&gt;Class&lt;/b&gt;" stretchable="true" />
-                    <engine:Column name="Method" title="&lt;b&gt;Method&lt;/b&gt;" stretchable="true" />
-                    <engine:Column name="Source" title="&lt;b&gt;Source&lt;/b&gt;" width="220" />
-                </engine:Columns>
-            </engine:MultiColumnListView>
+        </engine:TwoPaneSplitView>
 
-            <engine:MultiColumnListView name="listNativeStack" show-alternating-row-backgrounds="All" style="flex-grow: 1;">
-                <engine:Columns>
-                    <engine:Column name="Frame" title="&lt;b&gt;#&lt;/b&gt;" width="40" />
-                    <engine:Column name="Address" title="&lt;b&gt;Address&lt;/b&gt;" width="140" />
-                    <engine:Column name="Library" title="&lt;b&gt;Library&lt;/b&gt;" width="170" />
-                    <engine:Column name="Function" title="&lt;b&gt;Function&lt;/b&gt;" stretchable="true" />
-                    <engine:Column name="Source" title="&lt;b&gt;Source&lt;/b&gt;" stretchable="true" />
-                </engine:Columns>
-            </engine:MultiColumnListView>
+        <engine:Label name="labelStatus" class="status" />
 
-        </engine:VisualElement>
     </engine:VisualElement>
 </engine:UXML>

@@ -81,6 +81,10 @@ namespace Unity.Android
 
             tree.CloneTree(rootVisualElement);
 
+            var styleSheet = LoadBesideScript<StyleSheet>(".uss");
+            if (styleSheet != null)
+                rootVisualElement.styleSheets.Add(styleSheet);
+
             m_ReportPath = rootVisualElement.Q<TextField>("fieldReportPath");
             m_SymbolsPath = rootVisualElement.Q<TextField>("fieldSymbolsPath");
             m_Status = rootVisualElement.Q<Label>("labelStatus");
@@ -123,23 +127,27 @@ namespace Unity.Android
             });
 
             LoadReport(m_ReportPath.value);
+
+            if (m_Report == null)
+                SetStatus("Browse to an ANR report - anr-*.json, pulled off the device - to begin.");
         }
 
-        VisualTreeAsset LoadVisualTree()
+        VisualTreeAsset LoadVisualTree() =>
+            LoadBesideScript<VisualTreeAsset>(".uxml") ?? AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_FallbackUxml);
+
+        /// <summary>
+        /// Loads an asset sitting next to this script and sharing its name, so the window works
+        /// from an embedded package, a registry package or a project folder alike.
+        /// </summary>
+        T LoadBesideScript<T>(string extension) where T : UnityEngine.Object
         {
-            // Resolve the UXML next to this script, so the window works from an embedded package,
-            // a registry package or a project folder alike.
             var script = MonoScript.FromScriptableObject(this);
             var scriptPath = script != null ? AssetDatabase.GetAssetPath(script) : null;
-            if (!string.IsNullOrEmpty(scriptPath))
-            {
-                var beside = $"{Path.GetDirectoryName(scriptPath)?.Replace('\\', '/')}/{nameof(AnrReportWindow)}.uxml";
-                var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(beside);
-                if (tree != null)
-                    return tree;
-            }
+            if (string.IsNullOrEmpty(scriptPath))
+                return null;
 
-            return AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_FallbackUxml);
+            var beside = $"{Path.GetDirectoryName(scriptPath)?.Replace('\\', '/')}/{nameof(AnrReportWindow)}{extension}";
+            return AssetDatabase.LoadAssetAtPath<T>(beside);
         }
 
         void BrowseReport()
