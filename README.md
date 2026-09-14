@@ -139,6 +139,61 @@ A library stripped of DWARF but still carrying a symbol table - which is what `l
 
 Resolution runs `llvm-symbolizer` from the NDK the editor is configured with - one process per library, with all of that library's addresses on stdin, so a thousand-frame report costs a handful of process launches rather than a thousand. Symbol files are matched by name, accepting `libunity.so`, `libunity.sym.so`, `libunity.so.debug` and similar, preferring the subfolder that matches the report's ABI. Each library's `buildId` is checked against the symbol file with `llvm-readelf`, and a mismatch is reported rather than silently producing plausible but wrong names.
 
+### Example report
+
+[`TestProjects~/anr_report_example.json`](TestProjects~/anr_report_example.json) is a real report from a Pixel 7 Pro - 4700 lines, 44 Java threads and 61 native ones, captured by the sample app stalling its own UI thread. Abridged:
+
+```json
+{
+    "reportType": "ANR",
+    "reportTimeStamp": "2026-09-14 13:04:31 UTC",
+    "anrTimeMs": 3010,
+    "packageName": "com.UnityTechnologies.ANRWatchdogDemo",
+    "entry": "com.unity3d.player.UnityPlayerGameActivity",
+    "unityVersion": "6000.0.83f1",
+    "deviceModel": "Google Pixel 7 Pro",
+    "deviceApiLevel": 36,
+    "scriptingBackend": "IL2CPP",
+    "appVersion": "1.0",
+    "gameState": "Game Started",
+    "foreground": true,
+    "orientation": "Portrait",
+    "windowWidthPx": 1080,
+    "windowHeightPx": 2340,
+    "javaThreads": [
+        {
+            "name": "main",
+            "id": 2,
+            "state": "RUNNABLE",
+            "priority": 5,
+            "stackTrace": [
+                { "className": "com.unity3d.player.ReflectionHelper", "methodName": "nativeProxyInvoke", "fileName": "SourceFile", "lineNumber": -2 },
+                { "className": "java.lang.reflect.Proxy", "methodName": "invoke", "fileName": "Proxy.java", "lineNumber": 1009 },
+                { "className": "android.os.Handler", "methodName": "handleCallback", "fileName": "Handler.java", "lineNumber": 995 }
+            ]
+        }
+    ],
+    "abi": "arm64-v8a",
+    "processId": 22773,
+    "userId": 10234,
+    "nativeThreads": [
+        {
+            "name": "ANRWatchdogDemo",
+            "id": 22773,
+            "state": "S (sleeping)",
+            "priority": 10,
+            "stackTrace": [
+                { "address": 246808, "libraryName": ".../lib/arm64/libUnityAnrWatchdog.so", "buildId": "1388d5b46ad1d65ac302e66ec639200e4d9b5371" },
+                { "address": 653280, "libraryName": "/apex/com.android.runtime/lib64/bionic/libc.so", "buildId": "c472e218ac90e8dc08384b3b62c55961" },
+                { "address": 12578504, "libraryName": ".../lib/arm64/libil2cpp.so", "buildId": "cced66730dda82714cb89d131c0a0d91a5a397c2" }
+            ]
+        }
+    ]
+}
+```
+
+Two things to note when reading one by hand: the Java thread named `main` is the Android UI thread, and native `address` values are decimal - convert them to hex for `llvm-symbolizer`, or let the Editor window do it.
+
 ### Recording what the game was doing
 
 A report says which threads were stuck, not what the app was busy with. Only the game knows that, so set it:
