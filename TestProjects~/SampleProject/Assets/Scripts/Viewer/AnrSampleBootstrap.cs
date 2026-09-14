@@ -45,7 +45,12 @@ static class AnrSampleBootstrap
         var panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
         panelSettings.name = "ANR Sample Panel Settings";
         panelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
-        panelSettings.referenceResolution = new Vector2Int(1080, 1920);
+
+        // Everything in the UI is sized against this, so it is the one knob for how large the
+        // whole thing renders on device: a smaller reference resolution scales text, buttons and
+        // padding up together. 810x1440 is three quarters of a 1080p phone, so roughly a third
+        // larger than sizing against the real thing.
+        panelSettings.referenceResolution = new Vector2Int(810, 1440);
         panelSettings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
         panelSettings.match = 0.5f;
 
