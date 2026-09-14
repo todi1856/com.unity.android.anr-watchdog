@@ -12,7 +12,6 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <pthread.h>
-#include <semaphore.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <unwind.h>
@@ -30,18 +29,30 @@ namespace anrwatchdog
         }
 
         constexpr size_t kMaxFrames = 128;
+        constexpr size_t kMaxThreads = 256;
+        constexpr int kPollIntervalUs = 200;
 
-        // The target thread is interrupted mid-ANR and very likely holds the malloc lock, so the
-        // signal handler must not allocate. It writes raw program counters into this preallocated
-        // buffer and nothing else; symbolication happens on the watchdog thread afterwards.
-        // Only one thread is captured at a time, so a single buffer is enough.
-        uintptr_t s_Frames[kMaxFrames];
-        std::atomic<size_t> s_FrameCount{0};
-        std::atomic<pid_t> s_TargetTid{0};
-        sem_t s_CaptureDone;
+        // One slot per thread being captured. A thread that was given up on can still run its
+        // handler much later - with a slot of its own it writes where nobody is looking any more,
+        // instead of into the stack currently being captured.
+        //
+        // The table is statically allocated and never freed or resized for the same reason: a late
+        // handler must never find a dangling pointer. Untouched slots stay in untouched BSS pages.
+        struct CaptureSlot
+        {
+            std::atomic<pid_t> tid;
+            std::atomic<size_t> count;
+            std::atomic<bool> done;
+            uintptr_t frames[kMaxFrames];
+        };
+
+        CaptureSlot s_Slots[kMaxThreads];
+        std::atomic<size_t> s_SlotCount{0};
+        std::atomic<bool> s_HandlerInstalled{false};
 
         struct UnwindState
         {
+            CaptureSlot* slot;
             size_t count;
         };
 
@@ -61,21 +72,60 @@ namespace anrwatchdog
             if (state->count >= kMaxFrames)
                 return _URC_END_OF_STACK;
 
-            s_Frames[state->count++] = pc;
+            state->slot->frames[state->count++] = pc;
             return _URC_NO_REASON;
         }
 
+        /// The target thread is interrupted mid-ANR and very likely holds the malloc lock, so this
+        /// must not allocate or take a lock. It writes raw program counters into its own slot and
+        /// nothing else; symbolication happens on the watchdog thread afterwards.
         void CaptureSignalHandler(int /*signum*/, siginfo_t* /*info*/, void* /*context*/)
         {
-            // Something else may have sent this signal - only the thread we asked for responds.
-            if (s_TargetTid.load(std::memory_order_acquire) != GetCurrentThreadId())
+            const pid_t self = GetCurrentThreadId();
+            const size_t slotCount = s_SlotCount.load(std::memory_order_acquire);
+
+            for (size_t i = 0; i < slotCount; i++)
+            {
+                CaptureSlot& slot = s_Slots[i];
+                if (slot.tid.load(std::memory_order_acquire) != self)
+                    continue;
+
+                // Already captured: a duplicate or late signal must not overwrite the stack that
+                // was collected and read.
+                if (slot.done.load(std::memory_order_acquire))
+                    return;
+
+                UnwindState state{&slot, 0};
+                _Unwind_Backtrace(&UnwindCallback, &state);
+
+                slot.count.store(state.count, std::memory_order_release);
+                slot.done.store(true, std::memory_order_release);
                 return;
+            }
+        }
 
-            UnwindState state{0};
-            _Unwind_Backtrace(&UnwindCallback, &state);
+        bool InstallSignalHandler()
+        {
+            // Installed once and never restored. A thread that was stuck in an uninterruptible
+            // syscall can be handed the signal long after the capture gave up on it, and by then
+            // the default action for a real-time signal is to kill the process.
+            if (s_HandlerInstalled.load(std::memory_order_acquire))
+                return true;
 
-            s_FrameCount.store(state.count, std::memory_order_release);
-            sem_post(&s_CaptureDone); // async-signal-safe
+            struct sigaction action;
+            memset(&action, 0, sizeof(action));
+            action.sa_sigaction = CaptureSignalHandler;
+            action.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+            sigemptyset(&action.sa_mask);
+
+            if (sigaction(CaptureSignal(), &action, nullptr) == -1)
+            {
+                ANR_LOG_ERROR("Error setting up signal handler for signal %d: %s", CaptureSignal(), strerror(errno));
+                return false;
+            }
+
+            s_HandlerInstalled.store(true, std::memory_order_release);
+            return true;
         }
 
         bool SendSignalToThread(pid_t tid)
@@ -91,26 +141,28 @@ namespace anrwatchdog
             return true;
         }
 
-        bool WaitForCapture(int timeoutMs)
+        int64_t NowMs()
         {
-            timespec deadline;
-            if (clock_gettime(CLOCK_REALTIME, &deadline) == -1)
-                return false;
+            timespec now;
+            if (clock_gettime(CLOCK_MONOTONIC, &now) == -1)
+                return 0;
+            return static_cast<int64_t>(now.tv_sec) * 1000 + now.tv_nsec / 1000000;
+        }
 
-            deadline.tv_sec += timeoutMs / 1000;
-            deadline.tv_nsec += static_cast<long>(timeoutMs % 1000) * 1000000L;
-            if (deadline.tv_nsec >= 1000000000L)
+        /// Waits for one slot to be filled. Polling rather than a semaphore: a post from a thread
+        /// that timed out earlier would otherwise be consumed by whoever is waiting now, and read
+        /// as an answer from the wrong thread.
+        bool WaitForSlot(const CaptureSlot& slot, int timeoutMs)
+        {
+            const int64_t deadline = NowMs() + timeoutMs;
+
+            while (!slot.done.load(std::memory_order_acquire))
             {
-                deadline.tv_sec += 1;
-                deadline.tv_nsec -= 1000000000L;
+                if (NowMs() >= deadline)
+                    return false;
+                usleep(kPollIntervalUs);
             }
 
-            while (sem_timedwait(&s_CaptureDone, &deadline) == -1)
-            {
-                if (errno == EINTR)
-                    continue;
-                return false;
-            }
             return true;
         }
 
@@ -134,6 +186,12 @@ namespace anrwatchdog
                 if (tid <= 0 || tid == selfTid)
                     continue;
 
+                if (threads.size() >= kMaxThreads)
+                {
+                    ANR_LOG_ERROR("More than %zu threads, the rest are reported without stacks", kMaxThreads);
+                    break;
+                }
+
                 NativeThread thread;
                 thread.id = tid;
                 thread.name = GetThreadName(tid);
@@ -146,12 +204,14 @@ namespace anrwatchdog
             return threads;
         }
 
-        void ResolveFrames(NativeThread& thread, size_t frameCount, const std::vector<LoadedModule>& modules)
+        void ResolveFrames(NativeThread& thread, const CaptureSlot& slot, const std::vector<LoadedModule>& modules)
         {
+            const size_t frameCount = slot.count.load(std::memory_order_acquire);
+
             thread.stackTrace.reserve(frameCount);
             for (size_t i = 0; i < frameCount; i++)
             {
-                const uintptr_t pc = s_Frames[i];
+                const uintptr_t pc = slot.frames[i];
 
                 NativeStacktraceFrame frame;
                 frame.address = static_cast<uint64_t>(pc);
@@ -183,67 +243,40 @@ namespace anrwatchdog
         if (threads.empty())
             return threads;
 
+        if (!InstallSignalHandler())
+            return threads;
+
         ANR_LOG_INFO("Collecting stacktraces for %zu native threads", threads.size());
 
         // Taken once: the mapping from load address to library and build id is the same for every
         // thread, and walking it per frame would be wasted work.
         const std::vector<LoadedModule> modules = CollectLoadedModules();
 
-        if (sem_init(&s_CaptureDone, 0, 0) == -1)
+        // Published before any signal is sent, so a handler always sees a complete table.
+        for (size_t i = 0; i < threads.size(); i++)
         {
-            ANR_LOG_ERROR("sem_init failed: %s", strerror(errno));
-            return threads;
+            s_Slots[i].tid.store(threads[i].id, std::memory_order_relaxed);
+            s_Slots[i].count.store(0, std::memory_order_relaxed);
+            s_Slots[i].done.store(false, std::memory_order_relaxed);
         }
+        s_SlotCount.store(threads.size(), std::memory_order_release);
 
-        struct sigaction newAction;
-        struct sigaction oldAction;
-        memset(&newAction, 0, sizeof(newAction));
-        memset(&oldAction, 0, sizeof(oldAction));
-        newAction.sa_sigaction = CaptureSignalHandler;
-        newAction.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
-        sigemptyset(&newAction.sa_mask);
-
-        if (sigaction(CaptureSignal(), &newAction, &oldAction) == -1)
+        for (size_t i = 0; i < threads.size(); i++)
         {
-            ANR_LOG_ERROR("Error setting up signal handler for signal %d: %s", CaptureSignal(), strerror(errno));
-            sem_destroy(&s_CaptureDone);
-            return threads;
-        }
-
-        for (NativeThread& thread : threads)
-        {
-            // Drop anything a previous, timed-out capture may have posted late.
-            while (sem_trywait(&s_CaptureDone) == 0)
-            {
-            }
-
-            s_FrameCount.store(0, std::memory_order_relaxed);
-            s_TargetTid.store(thread.id, std::memory_order_release);
-
-            if (!SendSignalToThread(thread.id))
-            {
-                s_TargetTid.store(0, std::memory_order_release);
+            if (!SendSignalToThread(threads[i].id))
                 continue;
-            }
 
-            if (!WaitForCapture(captureTimeoutMs))
+            if (!WaitForSlot(s_Slots[i], captureTimeoutMs))
             {
+                // Usually a thread in an uninterruptible syscall: the signal stays pending until
+                // that syscall returns, which can be long after the report is written.
                 ANR_LOG_ERROR("Timeout while waiting for stacktrace from thread %d ('%s')",
-                    thread.id, thread.name.c_str());
-                s_TargetTid.store(0, std::memory_order_release);
+                    threads[i].id, threads[i].name.c_str());
                 continue;
             }
 
-            const size_t frameCount = s_FrameCount.load(std::memory_order_acquire);
-            s_TargetTid.store(0, std::memory_order_release);
-
-            ResolveFrames(thread, frameCount, modules);
+            ResolveFrames(threads[i], s_Slots[i], modules);
         }
-
-        if (sigaction(CaptureSignal(), &oldAction, nullptr) == -1)
-            ANR_LOG_ERROR("Error restoring signal handler for signal %d: %s", CaptureSignal(), strerror(errno));
-
-        sem_destroy(&s_CaptureDone);
 
         return threads;
     }

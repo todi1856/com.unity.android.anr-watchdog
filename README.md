@@ -163,4 +163,5 @@ The native library is compiled from source for every ABI of the build, by the Gr
 * Native frames are addresses only; symbolication is an offline step.
 * Unwinding starts inside the signal handler, so the top frames of each native stack are the handler itself.
 * The capture signal is `SIGRTMIN + 4`. It deliberately avoids `SIGUSR1`/`SIGUSR2`, which Mono uses, but a third-party library installing a handler for the same real-time signal would conflict.
-* A thread wedged in an uninterruptible kernel state cannot respond to the signal; it is reported with an empty stack after a 3 second timeout.
+* A thread wedged in an uninterruptible kernel state - flash I/O, a page fault on a file mapping, some binder transactions - cannot run the capture signal handler: the kernel holds the signal pending until the syscall returns. Such a thread is reported with an empty stack after a 500 ms timeout, alongside the `/proc/<tid>/status` state that explains it, usually `D (disk sleep)`. Threads are captured one at a time, so this timeout is paid per unresponsive thread.
+* At most 256 threads are captured; beyond that they are still listed, without stacks.

@@ -27,8 +27,11 @@ namespace
 {
     using namespace anrwatchdog;
 
-    // How long to wait for a single thread to unwind itself before giving up on it.
-    constexpr int kCaptureTimeoutMs = 3000;
+    // How long to wait for a single thread to unwind itself before giving up on it. Threads are
+    // captured one at a time, so this is paid per unresponsive thread - and a thread that can
+    // answer at all answers in well under a millisecond. Keeping it short matters: Android is
+    // already counting down to killing the process.
+    constexpr int kCaptureTimeoutMs = 500;
 
     // Selected from C# through AnrWatchdogSettings.worldReadableReports.
     constexpr mode_t kOwnerOnlyFileMode = 0600;

@@ -30,6 +30,7 @@ namespace anrwatchdog
 
     // Captures every native thread of this process except the calling one. Each thread is
     // interrupted with a signal and unwinds itself; captureTimeoutMs bounds the wait per thread so
-    // a thread that is wedged in an uninterruptible state cannot stall the report.
+    // a thread that is wedged in an uninterruptible state cannot stall the report. Such a thread
+    // is still reported, with an empty stack and the kernel state that explains why.
     std::vector<NativeThread> CaptureNativeThreads(int captureTimeoutMs);
 }
