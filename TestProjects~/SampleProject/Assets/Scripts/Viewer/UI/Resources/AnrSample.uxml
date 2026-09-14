@@ -20,8 +20,8 @@
             <ui:Slider name="stall-duration" low-value="1" high-value="20" value="6" class="slider" />
 
             <ui:VisualElement class="button-row">
-                <ui:Button name="stall-ui-thread" text="Stall Android UI thread" class="button button--danger" />
-                <ui:Button name="stall-main-thread" text="Stall Unity main thread" class="button button--danger" />
+                <ui:Button name="stall-android-ui-thread" text="Stall Android UI thread" class="button button--danger" />
+                <ui:Button name="stall-unity-main-thread" text="Stall Unity main thread" class="button button--danger" />
             </ui:VisualElement>
 
             <ui:VisualElement class="button-row">

@@ -58,6 +58,7 @@ static class AnrSampleReportFixture
     {
         var threads = new List<AnrReport.JavaThread>
         {
+            // "main" is the Android UI thread - the one the report is about.
             JavaThread("main", 2, "TIMED_WAITING", 5,
                 JavaFrame("java.lang.Thread", "sleep", "Thread.java", -2),
                 JavaFrame("java.lang.Thread", "sleep", "Thread.java", 450),
@@ -74,12 +75,12 @@ static class AnrSampleReportFixture
                 JavaFrame("com.android.internal.os.RuntimeInit$MethodAndArgsCaller", "run", "RuntimeInit.java", 578),
                 JavaFrame("com.android.internal.os.ZygoteInit", "main", "ZygoteInit.java", 1103)),
 
-            JavaThread("com.unity3d.anrwatchdog.MainThreadWatchdog", 70, "RUNNABLE", 10,
+            JavaThread("com.unity3d.anrwatchdog.UiThreadWatchdog", 70, "RUNNABLE", 10,
                 JavaFrame("dalvik.system.VMStack", "getThreadStackTrace", "VMStack.java", -2),
                 JavaFrame("java.lang.Thread", "getStackTrace", "Thread.java", 1841),
                 JavaFrame("java.lang.Thread", "getAllStackTraces", "Thread.java", 1917),
-                JavaFrame("com.unity3d.anrwatchdog.MainThreadWatchdog", "onApplicationNotResponding", "MainThreadWatchdog.java", 145),
-                JavaFrame("com.unity3d.anrwatchdog.MainThreadWatchdog", "run", "MainThreadWatchdog.java", 128)),
+                JavaFrame("com.unity3d.anrwatchdog.UiThreadWatchdog", "onApplicationNotResponding", "UiThreadWatchdog.java", 145),
+                JavaFrame("com.unity3d.anrwatchdog.UiThreadWatchdog", "run", "UiThreadWatchdog.java", 128)),
 
             JavaThread("FinalizerDaemon", 64, "WAITING", 5,
                 JavaFrame("java.lang.Object", "wait", "Object.java", -2),

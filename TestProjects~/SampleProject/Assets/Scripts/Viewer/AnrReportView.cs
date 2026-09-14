@@ -16,7 +16,9 @@ static class AnrReportView
         Field,
         Section,
         Thread,
-        MainThread,
+
+        /// <summary>The Android UI thread - the one the report is about.</summary>
+        UiThread,
         Frame,
         Note
     }
@@ -88,9 +90,9 @@ static class AnrReportView
         Add(lines, LineKind.Section, $"Java threads ({threads.Length})");
 
         // The stuck one is what the report is about, so it goes first.
-        foreach (var thread in threads.OrderBy(t => IsMainJavaThread(t) ? 0 : 1).ThenBy(t => t.name))
+        foreach (var thread in threads.OrderBy(t => IsAndroidUiThread(t) ? 0 : 1).ThenBy(t => t.name))
         {
-            Add(lines, IsMainJavaThread(thread) ? LineKind.MainThread : LineKind.Thread,
+            Add(lines, IsAndroidUiThread(thread) ? LineKind.UiThread : LineKind.Thread,
                 $"{thread.name}  (id {thread.id}, {thread.state}, priority {thread.priority})");
 
             AddFrames(lines, thread.stackTrace?.Select(FormatJavaFrame));
@@ -102,9 +104,10 @@ static class AnrReportView
         var threads = report.nativeThreads ?? Array.Empty<AnrReport.NativeThread>();
         Add(lines, LineKind.Section, $"Native threads ({threads.Length})");
 
+        // A tid equal to the pid is the process's first thread, which on Android is the UI thread.
         foreach (var thread in threads.OrderBy(t => t.id == report.processId ? 0 : 1).ThenBy(t => t.name))
         {
-            Add(lines, thread.id == report.processId ? LineKind.MainThread : LineKind.Thread,
+            Add(lines, thread.id == report.processId ? LineKind.UiThread : LineKind.Thread,
                 $"{thread.name}  (tid {thread.id}, {thread.state}, priority {thread.priority})");
 
             AddFrames(lines, thread.stackTrace?.Select(FormatNativeFrame));
@@ -144,7 +147,9 @@ static class AnrReportView
         return $"    #{index:00}  0x{frame.address:x16}  {library}";
     }
 
-    static bool IsMainJavaThread(AnrReport.JavaThread thread) => thread.name == "main";
+    // Android names its UI thread "main" in the Java thread dump. The Unity player loop shows up
+    // separately as "UnityMain".
+    static bool IsAndroidUiThread(AnrReport.JavaThread thread) => thread.name == "main";
 
     static void Add(List<Line> lines, LineKind kind, string text) => lines.Add(new Line(text, kind));
 }

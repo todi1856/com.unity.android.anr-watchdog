@@ -23,12 +23,15 @@ import java.util.Set;
 import java.util.TimeZone;
 
 /**
- * Watches the main thread from a background thread. The main thread is considered unresponsive
- * when a runnable posted to its Looper has not run for longer than the configured timeout - at
- * that point the Java thread dump is collected here and handed to native code, which appends the
- * native thread dump and writes the merged report to disk.
+ * Watches the Android UI thread - the activity's Looper thread, which is what Android itself
+ * watches - from a background thread. Note this is not the Unity main thread: the player loop runs
+ * on a thread of its own and keeps going while the UI thread is stuck.
+ * <p>
+ * The UI thread is considered unresponsive when a runnable posted to its Looper has not run for
+ * longer than the configured timeout. At that point the Java thread dump is collected here and
+ * handed to native code, which appends the native thread dump and writes the merged report to disk.
  */
-class MainThreadWatchdog extends Thread
+class UiThreadWatchdog extends Thread
 {
     static
     {
@@ -61,7 +64,7 @@ class MainThreadWatchdog extends Thread
 
     private boolean m_WorldReadableReports = true;
 
-    MainThreadWatchdog(Context context, Activity activity, File reportDirectory) {
+    UiThreadWatchdog(Context context, Activity activity, File reportDirectory) {
         m_Context = context;
         m_Activity = activity;
         m_ReportDirectory = reportDirectory;
@@ -81,7 +84,7 @@ class MainThreadWatchdog extends Thread
     }
 
     /**
-     * For how long the UI thread should be stuck, so we could consider this is an ANR.
+     * For how long the Android UI thread should be stuck, so we could consider this is an ANR.
      */
     void setANRTimeout(long milliseconds) {
         if (milliseconds < 0)
@@ -141,14 +144,14 @@ class MainThreadWatchdog extends Thread
             try {
                 Thread.sleep(m_PollIntervalMs);
             } catch (InterruptedException e) {
-                logMessage("MainThreadWatchdog was interrupted");
+                logMessage("UiThreadWatchdog was interrupted");
                 return;
             }
         }
     }
 
     private void onApplicationNotResponding(long anrTimeMs) {
-        logMessage("ANR detected, main thread has been unresponsive for " + anrTimeMs + " ms");
+        logMessage("ANR detected, the Android UI thread has been unresponsive for " + anrTimeMs + " ms");
 
         try {
             String javaReport = toJson(Thread.getAllStackTraces().entrySet(), anrTimeMs).toString(4);
@@ -260,7 +263,7 @@ class MainThreadWatchdog extends Thread
 
     /**
      * Collects the native thread dump, merges it with the supplied Java report and writes the
-     * result to reportPath. Called on the watchdog thread while the main thread is stuck.
+     * result to reportPath. Called on the watchdog thread while the Android UI thread is stuck.
      */
     private native boolean nativeApplicationNotResponding(String javaThreadsJson, String reportPath, boolean worldReadable);
 }

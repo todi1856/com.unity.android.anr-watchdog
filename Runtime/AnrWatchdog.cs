@@ -7,9 +7,10 @@ using UnityEngine.Android;
 namespace Unity.Android
 {
     /// <summary>
-    /// Detects ANRs (Application Not Responding) on Android by watching the main thread from a
-    /// background thread, and captures the Java and native stacks of every thread when the main
-    /// thread stops responding.
+    /// Detects ANRs (Application Not Responding) on Android by watching the Android UI thread from
+    /// a background thread, and captures the Java and native stacks of every thread when that
+    /// thread stops responding. The Unity main thread is a different thread and is not watched -
+    /// Android only raises an ANR for its own UI thread.
     /// </summary>
     public static class AnrWatchdog
     {
@@ -86,8 +87,9 @@ namespace Unity.Android
 
         /// <summary>
         /// Reads every report written so far, oldest first, and leaves them on disk - call
-        /// <see cref="ClearReports"/> to remove them. Reports are only readable once the main
-        /// thread recovers, since the stall blocks script execution as well.
+        /// <see cref="ClearReports"/> to remove them. A report written during an Android UI thread
+        /// stall can be read straight away, since the Unity main thread keeps running; one written
+        /// while the Unity main thread itself was blocked is only read once it recovers.
         /// </summary>
         public static AnrReport[] GetReports()
         {

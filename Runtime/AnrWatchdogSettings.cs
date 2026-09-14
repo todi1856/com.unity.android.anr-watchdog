@@ -9,17 +9,17 @@ namespace Unity.Android
     public struct AnrWatchdogSettings
     {
         /// <summary>
-        /// How long the main thread has to be stuck before it counts as an ANR. Android itself
-        /// raises an ANR after roughly 5 seconds of unresponsive input, so a lower value here
-        /// catches the stall before the system does.
+        /// How long the Android UI thread has to be stuck before it counts as an ANR. Android
+        /// itself raises an ANR after roughly 5 seconds of unresponsive input, so a lower value
+        /// here catches the stall before the system does.
         /// </summary>
         public long anrTimeoutMs;
 
-        /// <summary>How often the watchdog thread checks the main thread.</summary>
+        /// <summary>How often the watchdog thread checks the Android UI thread.</summary>
         public long pollIntervalMs;
 
         /// <summary>
-        /// Minimum interval between two reports, so a main thread that stays stuck does not
+        /// Minimum interval between two reports, so an Android UI thread that stays stuck does not
         /// produce a report on every check.
         /// </summary>
         public long reportIntervalMs;

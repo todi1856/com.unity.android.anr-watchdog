@@ -3,7 +3,7 @@
     "displayName": "Unity Android ANR Watchdog",
     "version": "0.0.1",
     "unity": "6000.0",
-    "description": "Detects Application Not Responding (ANR) conditions on Android by monitoring the Unity main thread, and reports where the thread was stuck.",
+    "description": "Detects Application Not Responding (ANR) conditions on Android by monitoring the Android UI thread, and reports where every thread was when it stopped responding.",
     "author": {
         "name": "Tomas Dirvanauskas",
         "email": "tomas@unity3d.com"

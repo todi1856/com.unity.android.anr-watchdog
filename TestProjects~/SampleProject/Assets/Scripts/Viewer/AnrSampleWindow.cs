@@ -89,8 +89,8 @@ public class AnrSampleWindow : MonoBehaviour
         m_StallDuration.RegisterValueChangedCallback(_ => RefreshStallDurationLabel());
         RefreshStallDurationLabel();
 
-        root.Q<Button>("stall-ui-thread").clicked += StallAndroidUiThread;
-        root.Q<Button>("stall-main-thread").clicked += StallUnityMainThread;
+        root.Q<Button>("stall-android-ui-thread").clicked += StallAndroidUiThread;
+        root.Q<Button>("stall-unity-main-thread").clicked += StallUnityMainThread;
         root.Q<Button>("clear-log").clicked += ClearLog;
         root.Q<Button>("clear-reports").clicked += ClearReports;
         root.Q<Button>("close-report").clicked += HideReport;
@@ -245,7 +245,7 @@ public class AnrSampleWindow : MonoBehaviour
             label.style.color = ColorFor(line.Kind);
             label.style.unityFontStyleAndWeight = line.Kind == AnrReportView.LineKind.Section ||
                                                   line.Kind == AnrReportView.LineKind.Thread ||
-                                                  line.Kind == AnrReportView.LineKind.MainThread
+                                                  line.Kind == AnrReportView.LineKind.UiThread
                 ? FontStyle.Bold
                 : FontStyle.Normal;
             label.style.fontSize = line.Kind == AnrReportView.LineKind.Section ? 22 : 18;
@@ -256,7 +256,7 @@ public class AnrSampleWindow : MonoBehaviour
     {
         AnrReportView.LineKind.Section => new Color32(240, 243, 247, 255),
         AnrReportView.LineKind.Thread => new Color32(130, 200, 255, 255),
-        AnrReportView.LineKind.MainThread => new Color32(255, 138, 128, 255),
+        AnrReportView.LineKind.UiThread => new Color32(255, 138, 128, 255),
         AnrReportView.LineKind.Frame => new Color32(176, 183, 192, 255),
         AnrReportView.LineKind.Note => new Color32(120, 127, 136, 255),
         _ => new Color32(198, 205, 214, 255)
@@ -294,14 +294,15 @@ public class AnrSampleWindow : MonoBehaviour
         if (!m_ReportView.ClassListContains("hidden"))
             ShowReport();
 
-        var mainThread = report.javaThreads?.FirstOrDefault(thread => thread.name == "main");
-        var topFrame = mainThread?.stackTrace is { Length: > 0 }
-            ? $"{mainThread.stackTrace[0].className}.{mainThread.stackTrace[0].methodName}"
+        // "main" in the Java thread dump is the Android UI thread, not the Unity main thread.
+        var uiThread = report.javaThreads?.FirstOrDefault(thread => thread.name == "main");
+        var topFrame = uiThread?.stackTrace is { Length: > 0 }
+            ? $"{uiThread.stackTrace[0].className}.{uiThread.stackTrace[0].methodName}"
             : "unknown";
 
         m_LastReportSummary = $"{report.anrTimeMs} ms stall, {report.javaThreads?.Length ?? 0} java / {report.nativeThreads?.Length ?? 0} native threads";
 
-        AppendLog(LogKind.Anr, $"ANR after {report.anrTimeMs} ms - main thread in {topFrame}");
+        AppendLog(LogKind.Anr, $"ANR after {report.anrTimeMs} ms - Android UI thread in {topFrame}");
         AppendLog(LogKind.Anr, $"   {report.javaThreads?.Length ?? 0} java threads, {report.nativeThreads?.Length ?? 0} native threads, abi {report.abi}");
 
         RefreshStatus();

@@ -4,8 +4,8 @@ namespace Unity.Android
 {
     /// <summary>
     /// A single ANR report, as written by the watchdog to <see cref="AnrWatchdog.ReportDirectory"/>.
-    /// The Java half is collected while the main thread is stuck; the native half is collected by
-    /// signalling every thread of the process and unwinding it.
+    /// The Java half is collected while the Android UI thread is stuck; the native half is
+    /// collected by signalling every thread of the process and unwinding it.
     /// </summary>
     /// <remarks>
     /// Field names intentionally match the on-disk JSON so <see cref="UnityEngine.JsonUtility"/>
@@ -71,7 +71,9 @@ namespace Unity.Android
         public string reportType;
         public string reportTimeStamp;
 
-        /// <summary>How long the main thread had been unresponsive when the report was taken.</summary>
+        /// <summary>
+        /// How long the Android UI thread had been unresponsive when the report was taken.
+        /// </summary>
         public long anrTimeMs;
 
         public string packageName;

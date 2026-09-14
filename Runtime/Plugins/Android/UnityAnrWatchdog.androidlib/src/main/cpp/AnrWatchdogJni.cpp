@@ -173,7 +173,7 @@ namespace
         return result;
     }
 
-    // Note: called on the watchdog thread while the main thread is unresponsive.
+    // Note: called on the watchdog thread while the Android UI thread is unresponsive.
     jboolean nativeApplicationNotResponding(JNIEnv* env, jobject /*thiz*/, jstring javaThreadsJson, jstring reportPath,
         jboolean worldReadable)
     {
@@ -211,7 +211,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /*reserved*/)
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK)
         return JNI_ERR;
 
-    jclass watchdogClass = env->FindClass("com/unity3d/anrwatchdog/MainThreadWatchdog");
+    jclass watchdogClass = env->FindClass("com/unity3d/anrwatchdog/UiThreadWatchdog");
     if (watchdogClass == nullptr)
         return JNI_ERR;
 

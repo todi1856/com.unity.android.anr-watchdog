@@ -11,7 +11,7 @@ import java.io.File;
  */
 public final class UnityAnrWatchdog
 {
-    private static MainThreadWatchdog s_Watchdog;
+    private static UiThreadWatchdog s_Watchdog;
 
     private UnityAnrWatchdog() {}
 
@@ -33,7 +33,7 @@ public final class UnityAnrWatchdog
         if (context == null)
             throw new IllegalArgumentException("activity must not be null");
 
-        MainThreadWatchdog watchdog = new MainThreadWatchdog(context, activity, new File(reportDirectory));
+        UiThreadWatchdog watchdog = new UiThreadWatchdog(context, activity, new File(reportDirectory));
         watchdog.setANRTimeout(anrTimeoutMs);
         watchdog.setANRPollInterval(pollIntervalMs);
         watchdog.setANRReportInterval(reportIntervalMs);
