@@ -246,7 +246,7 @@ class UiThreadWatchdog extends Thread
         jsonObject.put("reportTimeStamp", getCurrentDateTimeUTC());
         jsonObject.put("anrTimeMs", anrTimeMs);
         jsonObject.put("packageName", m_Context.getPackageName());
-        jsonObject.put("entry", m_Activity.getLocalClassName());
+        jsonObject.put("entry", getEntry());
         jsonObject.put("unityVersion", m_UnityVersion);
         jsonObject.put("deviceModel", String.format(Locale.ROOT, "%s %s", Build.MANUFACTURER, Build.MODEL));
         jsonObject.put("deviceFingerPrint", Build.FINGERPRINT);
@@ -292,6 +292,14 @@ class UiThreadWatchdog extends Thread
             jsonStacktrace.put(jsonStacktraceFrame);
         }
         return jsonStacktrace;
+    }
+
+    /**
+     * The activity can be gone by the time an ANR is reported - during teardown, or if the caller
+     * handed in one that has since been destroyed. A report without it is still worth having.
+     */
+    private String getEntry() {
+        return m_Activity != null ? m_Activity.getLocalClassName() : "";
     }
 
     private boolean isInMultiWindowMode() {

@@ -33,9 +33,14 @@ public final class UnityAnrWatchdog
         if (s_Watchdog != null)
             return;
 
+        // Logged rather than thrown: this runs from the game's startup path, and a diagnostics
+        // tool that cannot start is no reason to take the app down with it.
         Context context = activity != null ? activity.getApplicationContext() : null;
         if (context == null)
-            throw new IllegalArgumentException("activity must not be null");
+        {
+            android.util.Log.e("Unity", "ANR watchdog not started: no activity was supplied.");
+            return;
+        }
 
         UiThreadWatchdog watchdog = new UiThreadWatchdog(context, activity, new File(reportDirectory));
         watchdog.setANRTimeout(anrTimeoutMs);
