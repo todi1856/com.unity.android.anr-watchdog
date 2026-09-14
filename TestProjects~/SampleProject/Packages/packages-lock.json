@@ -5,7 +5,7 @@
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "b86334904d36bdd1ce91504aba973ba0aa3645cb"
+      "hash": "750a4bccb390e125ee2adb88b202fea296e5f4a0"
     },
     "com.unity.android.anr-watchdog": {
       "version": "file:../../..",
