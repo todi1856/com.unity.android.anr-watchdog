@@ -96,7 +96,8 @@ namespace Unity.Android
                 Application.unityVersion,
                 ScriptingBackend,
                 BuildType,
-                settings.worldReadableReports);
+                settings.worldReadableReports,
+                settings.prettyJson);
         }
 
         /// <summary>Stops the watchdog. Reports already on disk are left untouched.</summary>

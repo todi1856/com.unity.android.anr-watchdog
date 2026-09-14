@@ -39,12 +39,21 @@ namespace Unity.Android
         /// </summary>
         public bool worldReadableReports;
 
+        /// <summary>
+        /// Write reports indented, so they can be read as they are. Turning this off roughly halves
+        /// the file - a report with a hundred threads runs to a few hundred kilobytes - at the cost
+        /// of being unreadable without a formatter. The Editor's report window does not care either
+        /// way.
+        /// </summary>
+        public bool prettyJson;
+
         public static AnrWatchdogSettings Default => new AnrWatchdogSettings
         {
             anrTimeoutMs = 3000,
             pollIntervalMs = 300,
             reportIntervalMs = 10000,
-            worldReadableReports = true
+            worldReadableReports = true,
+            prettyJson = true
         };
     }
 }

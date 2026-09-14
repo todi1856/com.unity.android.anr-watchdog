@@ -67,6 +67,7 @@ class UiThreadWatchdog extends Thread
     private String m_BuildType = "";
 
     private boolean m_WorldReadableReports = true;
+    private boolean m_PrettyJson = true;
 
     // Written from the Unity main thread, read from the watchdog thread.
     private volatile String m_GameState = "";
@@ -143,6 +144,15 @@ class UiThreadWatchdog extends Thread
         m_GameState = state == null ? "" : state;
     }
 
+    /**
+     * Whether reports are indented. Both halves of the report follow this - the Java one written
+     * here and the native one appended by the JNI call - so the formatting never changes midway
+     * through a file.
+     */
+    void setPrettyJson(boolean pretty) {
+        m_PrettyJson = pretty;
+    }
+
     void setEngineMetadata(String unityVersion, String scriptingBackend, String buildType) {
         m_UnityVersion = unityVersion == null ? "" : unityVersion;
         m_ScriptingBackend = scriptingBackend == null ? "" : scriptingBackend;
@@ -188,13 +198,14 @@ class UiThreadWatchdog extends Thread
         logMessage("ANR detected, the Android UI thread has been unresponsive for " + anrTimeMs + " ms");
 
         try {
-            String javaReport = toJson(Thread.getAllStackTraces().entrySet(), anrTimeMs).toString(4);
+            JSONObject json = toJson(Thread.getAllStackTraces().entrySet(), anrTimeMs);
+            String javaReport = m_PrettyJson ? json.toString(4) : json.toString();
             String reportPath = createReportPath();
             if (reportPath == null)
                 return;
 
             // Native side appends the native thread dump and writes the merged report atomically.
-            if (!nativeApplicationNotResponding(javaReport, reportPath, m_WorldReadableReports))
+            if (!nativeApplicationNotResponding(javaReport, reportPath, m_WorldReadableReports, m_PrettyJson))
                 logMessage("Failed to write ANR report to " + reportPath);
         } catch (JSONException e) {
             logMessage("Failed to serialize ANR report: " + e);
@@ -322,5 +333,6 @@ class UiThreadWatchdog extends Thread
      * Collects the native thread dump, merges it with the supplied Java report and writes the
      * result to reportPath. Called on the watchdog thread while the Android UI thread is stuck.
      */
-    private native boolean nativeApplicationNotResponding(String javaThreadsJson, String reportPath, boolean worldReadable);
+    private native boolean nativeApplicationNotResponding(String javaThreadsJson, String reportPath, boolean worldReadable,
+        boolean prettyJson);
 }

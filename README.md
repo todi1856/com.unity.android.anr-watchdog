@@ -85,6 +85,7 @@ Nothing watches the report directory for you: the package writes reports and lea
 * **anrTimeoutMs** (default `3000`) - how long the Android UI thread must be stuck before it counts as an ANR. Lower than Android's own threshold, so the stall is captured before the system kills the app.
 * **pollIntervalMs** (default `300`) - how often the watchdog thread checks the Android UI thread.
 * **reportIntervalMs** (default `10000`) - minimum interval between two reports, so a UI thread that stays stuck does not produce a report on every check.
+* **prettyJson** (default `true`) - write reports indented, so they can be read as they are. Turning it off roughly halves the file at the cost of needing a formatter to read one by hand; the Editor's report window does not care either way.
 * **worldReadableReports** (default `true`) - write reports as `0644` rather than owner-only `0600`.
 
   **Leave this on if you want to pull reports off the device with `adb pull`.** `adb` runs as the `shell` user, not as your app, so it cannot read a file the app wrote owner-only:

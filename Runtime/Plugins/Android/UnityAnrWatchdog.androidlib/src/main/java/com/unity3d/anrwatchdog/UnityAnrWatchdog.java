@@ -28,7 +28,8 @@ public final class UnityAnrWatchdog
         String unityVersion,
         String scriptingBackend,
         String buildType,
-        boolean worldReadableReports)
+        boolean worldReadableReports,
+        boolean prettyJson)
     {
         if (s_Watchdog != null)
             return;
@@ -49,6 +50,7 @@ public final class UnityAnrWatchdog
         watchdog.setEngineMetadata(unityVersion, scriptingBackend, buildType);
         watchdog.setGameState(s_GameState);
         watchdog.setWorldReadableReports(worldReadableReports);
+        watchdog.setPrettyJson(prettyJson);
         watchdog.setDaemon(true);
         watchdog.start();
 

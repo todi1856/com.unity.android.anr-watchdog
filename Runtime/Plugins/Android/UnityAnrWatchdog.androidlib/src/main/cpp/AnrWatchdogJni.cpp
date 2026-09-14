@@ -37,11 +37,11 @@ namespace
     constexpr mode_t kOwnerOnlyFileMode = 0600;
     constexpr mode_t kWorldReadableFileMode = 0644;
 
-    std::string BuildNativeReport()
+    std::string BuildNativeReport(bool pretty)
     {
         std::vector<NativeThread> threads = CaptureNativeThreads(kCaptureTimeoutMs);
 
-        JsonWriter writer;
+        JsonWriter writer(pretty);
         writer.BeginObject();
 
         writer.Key("abi");
@@ -91,7 +91,7 @@ namespace
     // Splices two JSON objects into one. Both sides are produced by this package, so this is a
     // textual merge rather than a parse - it keeps the Java report verbatim and avoids pulling a
     // JSON parser into the module.
-    bool MergeJsonObjects(const std::string& first, const std::string& second, std::string& merged)
+    bool MergeJsonObjects(const std::string& first, const std::string& second, bool pretty, std::string& merged)
     {
         const std::string left = Trim(first);
         const std::string right = Trim(second);
@@ -103,15 +103,20 @@ namespace
             return false;
         }
 
+        // Both halves are written with the same indentation, so their bodies only need the indent
+        // of their own first line put back after the trim.
+        const std::string lineBreak = pretty ? "\n    " : "";
         const std::string leftBody = Trim(left.substr(1, left.size() - 2));
         const std::string rightBody = Trim(right.substr(1, right.size() - 2));
 
         merged = "{";
-        merged += leftBody;
+        if (!leftBody.empty())
+            merged += lineBreak + leftBody;
         if (!leftBody.empty() && !rightBody.empty())
-            merged += ",\n";
-        merged += rightBody;
-        merged += "}";
+            merged += ",";
+        if (!rightBody.empty())
+            merged += lineBreak + rightBody;
+        merged += pretty ? "\n}" : "}";
         return true;
     }
 
@@ -178,7 +183,7 @@ namespace
 
     // Note: called on the watchdog thread while the Android UI thread is unresponsive.
     jboolean nativeApplicationNotResponding(JNIEnv* env, jobject /*thiz*/, jstring javaThreadsJson, jstring reportPath,
-        jboolean worldReadable)
+        jboolean worldReadable, jboolean prettyJson)
     {
         const std::string javaReport = ToStdString(env, javaThreadsJson);
         const std::string path = ToStdString(env, reportPath);
@@ -191,8 +196,10 @@ namespace
             return JNI_FALSE;
         }
 
+        const bool pretty = prettyJson == JNI_TRUE;
+
         std::string merged;
-        if (!MergeJsonObjects(javaReport, BuildNativeReport(), merged))
+        if (!MergeJsonObjects(javaReport, BuildNativeReport(pretty), pretty, merged))
             return JNI_FALSE;
 
         const mode_t mode = worldReadable == JNI_TRUE ? kWorldReadableFileMode : kOwnerOnlyFileMode;
@@ -204,7 +211,7 @@ namespace
     }
 
     const JNINativeMethod kMethods[] = {
-        {"nativeApplicationNotResponding", "(Ljava/lang/String;Ljava/lang/String;Z)Z", reinterpret_cast<void*>(nativeApplicationNotResponding)},
+        {"nativeApplicationNotResponding", "(Ljava/lang/String;Ljava/lang/String;ZZ)Z", reinterpret_cast<void*>(nativeApplicationNotResponding)},
     };
 }
 
