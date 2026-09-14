@@ -24,6 +24,18 @@ __Note:__ Detection and capture both run on a background thread, so they keep wo
 * Android as the active build target
 * Android **API level 23** or higher on the device
 
+## Tested on
+
+Exercised end to end - stall the UI thread, capture, report written to disk, symbolicated in the Editor - on:
+
+| Device | Android | API level |
+| --- | --- | --- |
+| Google Pixel 7 Pro | 16 | 36 |
+| Google Pixel 2 | 10 | 29 |
+| Oppo R15 Pro | 8.1.0 | 27 |
+
+API 27 is the oldest version verified so far. The module still builds against whatever `minSdkVersion` the project sets, and nothing in the capture path is version specific - `java.time` is guarded for API 26, multi-window for API 24, `getLongVersionCode` for API 28 - but below 27 is untested.
+
 ## Installation
 
 1. In Unity, open **Window → Package Manager**.
