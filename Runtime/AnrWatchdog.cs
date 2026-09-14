@@ -17,13 +17,6 @@ namespace Unity.Android
         const string k_ReportDirectoryName = "anr";
         const string k_ReportSearchPattern = "anr-*.json";
 
-        /// <summary>
-        /// Raised on the main thread once it recovers, for every report the watchdog produced
-        /// while it was stuck. Requires <see cref="AnrWatchdogSettings.reportPollIntervalSeconds"/>
-        /// to be greater than zero.
-        /// </summary>
-        public static event Action<AnrReport> AnrDetected;
-
         /// <summary>Directory the watchdog writes reports to.</summary>
         public static string ReportDirectory => Path.Combine(Application.persistentDataPath, k_ReportDirectoryName);
 
@@ -79,8 +72,6 @@ namespace Unity.Android
                     settings.worldReadableReports);
             }
 
-            if (settings.reportPollIntervalSeconds > 0.0f)
-                AnrReportPoller.Run(settings.reportPollIntervalSeconds);
         }
 
         /// <summary>Stops the watchdog. Reports already on disk are left untouched.</summary>
@@ -88,8 +79,6 @@ namespace Unity.Android
         {
             if (!IsAndroidPlayer)
                 return;
-
-            AnrReportPoller.Shutdown();
 
             using (var watchdog = new AndroidJavaClass(k_JavaClass))
                 watchdog.CallStatic("stop");
@@ -156,8 +145,6 @@ namespace Unity.Android
             Array.Sort(files, StringComparer.Ordinal); // File names are timestamps, so this is chronological.
             return files;
         }
-
-        internal static void RaiseAnrDetected(AnrReport report) => AnrDetected?.Invoke(report);
 
         static string ScriptingBackend =>
 #if ENABLE_IL2CPP

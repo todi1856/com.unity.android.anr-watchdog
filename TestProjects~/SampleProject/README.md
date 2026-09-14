@@ -8,7 +8,9 @@ A small Unity project that consumes the package from `../../..` and exercises th
 2. Make sure `Assets/DefaultScene.unity` is in **File → Build Profiles / Build Settings**.
 3. Build and run on a device.
 
-The UI is created at runtime by `AnrSampleBootstrap`, so any scene works - in the Editor you can simply press Play. The watchdog itself only runs in an Android player; in the Editor the UI comes up and reports that it did not start.
+The UI is created at runtime by `AnrSampleBootstrap`, so any scene works - in the Editor you can simply press Play. The watchdog itself only runs in an Android player; in the Editor the UI comes up and reports that it is not running.
+
+`Entry` on the scene owns the watchdog's lifecycle, in the shape a real integration would use: log whatever the previous session left behind, clear it, then `Start()`. The window only observes it - its Start/Stop button restarts the watchdog with the window's own settings.
 
 ## What the UI shows
 

@@ -25,13 +25,6 @@ namespace Unity.Android
         public long reportIntervalMs;
 
         /// <summary>
-        /// How often C# checks the report directory for new reports to raise
-        /// <see cref="AnrWatchdog.AnrDetected"/> for. Zero disables polling, leaving
-        /// <see cref="AnrWatchdog.GetReports"/> as the only way to collect them.
-        /// </summary>
-        public float reportPollIntervalSeconds;
-
-        /// <summary>
         /// Write reports as 0644 instead of 0600, so anything on the device that can reach the
         /// report directory can read them. Reports hold thread names and stacks, no user data.
         /// <para>
@@ -47,7 +40,6 @@ namespace Unity.Android
             anrTimeoutMs = 3000,
             pollIntervalMs = 300,
             reportIntervalMs = 10000,
-            reportPollIntervalSeconds = 1.0f,
             worldReadableReports = true
         };
     }

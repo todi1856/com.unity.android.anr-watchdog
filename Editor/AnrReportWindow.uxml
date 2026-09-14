@@ -30,16 +30,21 @@
 
         <engine:VisualElement style="flex-grow: 1; flex-direction: row;">
 
-            <engine:MultiColumnListView name="listThreads" show-alternating-row-backgrounds="All"
-                                        style="width: 34%; border-right-width: 1px; border-right-color: rgba(0, 0, 0, 0.4);">
-                <engine:Columns>
-                    <engine:Column name="Name" title="&lt;b&gt;Thread&lt;/b&gt;" stretchable="true" />
-                    <engine:Column name="Id" title="&lt;b&gt;Id&lt;/b&gt;" width="70" />
-                    <engine:Column name="State" title="&lt;b&gt;State&lt;/b&gt;" width="110" />
-                    <engine:Column name="Priority" title="&lt;b&gt;Prio&lt;/b&gt;" width="50" />
-                    <engine:Column name="Frames" title="&lt;b&gt;Frames&lt;/b&gt;" width="60" />
-                </engine:Columns>
-            </engine:MultiColumnListView>
+            <engine:VisualElement style="width: 34%; border-right-width: 1px; border-right-color: rgba(0, 0, 0, 0.4);">
+                <!-- One filter per tab, so a search in the Java threads does not follow you into
+                     the native ones. Only the active tab's field is shown. -->
+                <editor:ToolbarSearchField name="fieldJavaThreadFilter" style="margin: 2px 4px 2px 4px; flex-shrink: 0;" />
+                <editor:ToolbarSearchField name="fieldNativeThreadFilter" style="margin: 2px 4px 2px 4px; flex-shrink: 0;" />
+                <engine:MultiColumnListView name="listThreads" show-alternating-row-backgrounds="All" style="flex-grow: 1;">
+                    <engine:Columns>
+                        <engine:Column name="Name" title="&lt;b&gt;Thread&lt;/b&gt;" stretchable="true" />
+                        <engine:Column name="Id" title="&lt;b&gt;Id&lt;/b&gt;" width="70" />
+                        <engine:Column name="State" title="&lt;b&gt;State&lt;/b&gt;" width="110" />
+                        <engine:Column name="Priority" title="&lt;b&gt;Prio&lt;/b&gt;" width="50" />
+                        <engine:Column name="Frames" title="&lt;b&gt;Frames&lt;/b&gt;" width="60" />
+                    </engine:Columns>
+                </engine:MultiColumnListView>
+            </engine:VisualElement>
 
             <engine:MultiColumnListView name="listJavaStack" show-alternating-row-backgrounds="All" style="flex-grow: 1;">
                 <engine:Columns>

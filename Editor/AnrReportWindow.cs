@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -42,10 +43,22 @@ namespace Unity.Android
         MultiColumnListView m_JavaStack;
         MultiColumnListView m_NativeStack;
         TabView m_Tabs;
+        ToolbarSearchField m_JavaThreadFilter;
+        ToolbarSearchField m_NativeThreadFilter;
+
+        // Serialized so the filters survive a domain reload - the window is rebuilt from scratch
+        // on every script recompile and on entering play mode.
+        [SerializeField] string m_JavaThreadFilterValue;
+        [SerializeField] string m_NativeThreadFilterValue;
 
         AnrReport m_Report;
         readonly List<KeyValuePair<string, string>> m_MetadataRows = new List<KeyValuePair<string, string>>();
         readonly AnrSymbolicator m_Symbolicator = new AnrSymbolicator();
+
+        // What the thread list is showing: the report's threads passed through the name filter.
+        // Selection and cell binding both index these, not the report's arrays.
+        readonly List<AnrReport.JavaThread> m_JavaThreads = new List<AnrReport.JavaThread>();
+        readonly List<AnrReport.NativeThread> m_NativeThreads = new List<AnrReport.NativeThread>();
 
         bool NativeTabSelected => m_Tabs.selectedTabIndex == 1;
 
@@ -76,6 +89,12 @@ namespace Unity.Android
             m_JavaStack = rootVisualElement.Q<MultiColumnListView>("listJavaStack");
             m_NativeStack = rootVisualElement.Q<MultiColumnListView>("listNativeStack");
             m_Tabs = rootVisualElement.Q<TabView>("tabThreads");
+            m_JavaThreadFilter = rootVisualElement.Q<ToolbarSearchField>("fieldJavaThreadFilter");
+            m_NativeThreadFilter = rootVisualElement.Q<ToolbarSearchField>("fieldNativeThreadFilter");
+            m_JavaThreadFilter.tooltip = "Filter Java threads by name";
+            m_NativeThreadFilter.tooltip = "Filter native threads by name";
+            m_JavaThreadFilter.SetValueWithoutNotify(m_JavaThreadFilterValue ?? string.Empty);
+            m_NativeThreadFilter.SetValueWithoutNotify(m_NativeThreadFilterValue ?? string.Empty);
 
             m_ReportPath.value = EditorPrefs.GetString(k_ReportPathKey, string.Empty);
             m_SymbolsPath.value = EditorPrefs.GetString(k_SymbolsPathKey, string.Empty);
@@ -92,6 +111,16 @@ namespace Unity.Android
 
             m_Tabs.activeTabChanged += (_, __) => RefreshThreads();
             m_Threads.selectionChanged += _ => RefreshStack();
+            m_JavaThreadFilter.RegisterValueChangedCallback(changed =>
+            {
+                m_JavaThreadFilterValue = changed.newValue;
+                RefreshThreads();
+            });
+            m_NativeThreadFilter.RegisterValueChangedCallback(changed =>
+            {
+                m_NativeThreadFilterValue = changed.newValue;
+                RefreshThreads();
+            });
 
             LoadReport(m_ReportPath.value);
         }
@@ -204,13 +233,33 @@ namespace Unity.Android
             if (m_Report == null)
                 return;
 
+            // Only the filter belonging to the visible tab is shown, but both lists are kept
+            // filtered so switching tabs needs no extra work.
+            m_JavaThreadFilter.style.display = NativeTabSelected ? DisplayStyle.None : DisplayStyle.Flex;
+            m_NativeThreadFilter.style.display = NativeTabSelected ? DisplayStyle.Flex : DisplayStyle.None;
+
+            var javaFilter = m_JavaThreadFilter?.value ?? string.Empty;
+            var nativeFilter = m_NativeThreadFilter?.value ?? string.Empty;
+
+            m_JavaThreads.Clear();
+            m_JavaThreads.AddRange((m_Report.javaThreads ?? Array.Empty<AnrReport.JavaThread>())
+                .Where(thread => Matches(thread.name, javaFilter)));
+
+            m_NativeThreads.Clear();
+            m_NativeThreads.AddRange((m_Report.nativeThreads ?? Array.Empty<AnrReport.NativeThread>())
+                .Where(thread => Matches(thread.name, nativeFilter)));
+
             m_Threads.itemsSource = NativeTabSelected
-                ? (System.Collections.IList)(m_Report.nativeThreads ?? Array.Empty<AnrReport.NativeThread>())
-                : (m_Report.javaThreads ?? Array.Empty<AnrReport.JavaThread>());
+                ? (System.Collections.IList)m_NativeThreads
+                : m_JavaThreads;
 
             m_Threads.Rebuild();
             RefreshStack();
         }
+
+        static bool Matches(string threadName, string filter) =>
+            string.IsNullOrEmpty(filter) ||
+            (threadName != null && threadName.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0);
 
         void RefreshStack()
         {
@@ -223,12 +272,12 @@ namespace Unity.Android
 
             if (NativeTabSelected)
             {
-                m_NativeStack.itemsSource = m_Report.nativeThreads[index].stackTrace ?? Array.Empty<AnrReport.NativeStackFrame>();
+                m_NativeStack.itemsSource = m_NativeThreads[index].stackTrace ?? Array.Empty<AnrReport.NativeStackFrame>();
                 m_NativeStack.Rebuild();
             }
             else
             {
-                m_JavaStack.itemsSource = m_Report.javaThreads[index].stackTrace ?? Array.Empty<AnrReport.JavaStackFrame>();
+                m_JavaStack.itemsSource = m_JavaThreads[index].stackTrace ?? Array.Empty<AnrReport.JavaStackFrame>();
                 m_JavaStack.Rebuild();
             }
         }
@@ -290,17 +339,17 @@ namespace Unity.Android
                 m_Threads.columns[column].makeCell = MakeCell;
 
             m_Threads.columns[k_Name].bindCell = (element, i) => Text(element,
-                NativeTabSelected ? m_Report.nativeThreads[i].name : m_Report.javaThreads[i].name);
+                NativeTabSelected ? m_NativeThreads[i].name : m_JavaThreads[i].name);
             m_Threads.columns[k_Id].bindCell = (element, i) => Text(element,
-                NativeTabSelected ? m_Report.nativeThreads[i].id.ToString() : m_Report.javaThreads[i].id.ToString());
+                NativeTabSelected ? m_NativeThreads[i].id.ToString() : m_JavaThreads[i].id.ToString());
             m_Threads.columns[k_State].bindCell = (element, i) => Text(element,
-                NativeTabSelected ? m_Report.nativeThreads[i].state : m_Report.javaThreads[i].state);
+                NativeTabSelected ? m_NativeThreads[i].state : m_JavaThreads[i].state);
             m_Threads.columns[k_Priority].bindCell = (element, i) => Text(element,
-                NativeTabSelected ? m_Report.nativeThreads[i].priority.ToString() : m_Report.javaThreads[i].priority.ToString());
+                NativeTabSelected ? m_NativeThreads[i].priority.ToString() : m_JavaThreads[i].priority.ToString());
             m_Threads.columns[k_Frames].bindCell = (element, i) => Text(element,
                 NativeTabSelected
-                    ? (m_Report.nativeThreads[i].stackTrace?.Length ?? 0).ToString()
-                    : (m_Report.javaThreads[i].stackTrace?.Length ?? 0).ToString());
+                    ? (m_NativeThreads[i].stackTrace?.Length ?? 0).ToString()
+                    : (m_JavaThreads[i].stackTrace?.Length ?? 0).ToString());
         }
 
         void SetUpJavaStackColumns()

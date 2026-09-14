@@ -22,6 +22,7 @@ public class AnrSampleWindow : MonoBehaviour
 
     const int k_MaxLogEntries = 200;
     const float k_StatusRefreshSeconds = 0.25f;
+    const float k_ReportPollSeconds = 1.0f;
     const float k_LongFrameSeconds = 0.5f;
     const float k_WorstFrameWindowSeconds = 3.0f;
 
@@ -47,6 +48,10 @@ public class AnrSampleWindow : MonoBehaviour
     AnrWatchdogSettings m_Settings = AnrWatchdogSettings.Default;
 
     float m_NextStatusRefresh;
+    float m_NextReportPoll;
+
+    // Reports stay on disk until they are cleared, so the ones already logged are remembered.
+    readonly HashSet<string> m_LoggedReports = new HashSet<string>();
     float m_WorstFrameSeconds;
     float m_WorstFrameExpiry;
 
@@ -100,30 +105,46 @@ public class AnrSampleWindow : MonoBehaviour
         m_ViewReport.SetEnabled(true);
 #endif
 
-        AnrWatchdog.AnrDetected += OnAnrDetected;
-
         AppendLog(LogKind.Info, $"Sample started, Unity {Application.unityVersion}");
 #if UNITY_EDITOR
         AppendLog(LogKind.Info, "Editor: 'View last report' shows sample data until a real report arrives");
 #endif
-        StartWatchdog();
-        RefreshStatus();
-    }
+        // Entry owns starting the watchdog; this window only reports on it and can toggle it.
+        AppendLog(LogKind.Info, AnrWatchdog.IsRunning
+            ? $"Watchdog is running, reports go to {AnrWatchdog.ReportDirectory}"
+            : "Watchdog is not running - an Android player is required");
 
-    void OnDestroy()
-    {
-        AnrWatchdog.AnrDetected -= OnAnrDetected;
+        RefreshStatus();
     }
 
     void Update()
     {
         TrackFrameTime();
+        PollForReports();
 
         if (Time.unscaledTime < m_NextStatusRefresh)
             return;
 
         m_NextStatusRefresh = Time.unscaledTime + k_StatusRefreshSeconds;
         RefreshStatus();
+    }
+
+    /// <summary>
+    /// The package writes reports and leaves them on disk; noticing them is the app's job. This is
+    /// also how reports from an earlier session - one the ANR actually killed - surface here.
+    /// </summary>
+    void PollForReports()
+    {
+        if (Time.unscaledTime < m_NextReportPoll)
+            return;
+
+        m_NextReportPoll = Time.unscaledTime + k_ReportPollSeconds;
+
+        foreach (var report in AnrWatchdog.GetReports())
+        {
+            if (m_LoggedReports.Add(report.sourcePath))
+                OnAnrDetected(report);
+        }
     }
 
     void TrackFrameTime()
@@ -192,19 +213,15 @@ public class AnrSampleWindow : MonoBehaviour
         }
         else
         {
-            StartWatchdog();
+            // Restarting from here applies this window's settings rather than Entry's defaults.
+            AnrWatchdog.Start(m_Settings);
+            AppendLog(LogKind.Info,
+                AnrWatchdog.IsRunning
+                    ? $"Watchdog started, reports go to {AnrWatchdog.ReportDirectory}"
+                    : "Watchdog did not start - an Android player is required");
         }
 
         RefreshStatus();
-    }
-
-    void StartWatchdog()
-    {
-        AnrWatchdog.Start(m_Settings);
-        AppendLog(LogKind.Info,
-            AnrWatchdog.IsRunning
-                ? $"Watchdog started, reports go to {AnrWatchdog.ReportDirectory}"
-                : "Watchdog did not start - an Android player is required");
     }
 
     void SetUpReportList()
@@ -320,6 +337,7 @@ public class AnrSampleWindow : MonoBehaviour
     {
         var reportCount = AnrWatchdog.GetReports().Length;
         AnrWatchdog.ClearReports();
+        m_LoggedReports.Clear();
 
         AppendLog(LogKind.Info, reportCount > 0
             ? $"Deleted {reportCount} report(s) from {AnrWatchdog.ReportDirectory}"
