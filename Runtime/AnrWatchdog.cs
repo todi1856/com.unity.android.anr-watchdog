@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
+using UnityEngine.Android;
 
 namespace Unity.Android
 {
@@ -13,7 +14,6 @@ namespace Unity.Android
     public static class AnrWatchdog
     {
         const string k_JavaClass = "com.unity3d.anrwatchdog.UnityAnrWatchdog";
-        const string k_UnityPlayerClass = "com.unity3d.player.UnityPlayer";
         const string k_ReportDirectoryName = "anr";
         const string k_ReportSearchPattern = "anr-*.json";
 
@@ -28,10 +28,17 @@ namespace Unity.Android
                 if (!IsAndroidPlayer)
                     return false;
 
-                using (var watchdog = new AndroidJavaClass(k_JavaClass))
-                    return watchdog.CallStatic<bool>("isRunning");
+                return Watchdog.CallStatic<bool>("isRunning");
             }
         }
+
+        /// <summary>
+        /// Kept for the lifetime of the process: constructing it costs a JNI class lookup and a
+        /// global reference, and <see cref="IsRunning"/> is cheap enough to be polled.
+        /// </summary>
+        static AndroidJavaClass Watchdog => s_Watchdog ??= new AndroidJavaClass(k_JavaClass);
+
+        static AndroidJavaClass s_Watchdog;
 
         /// <summary>
         /// Everything below this point talks to Java, which only exists in an Android player -
@@ -56,22 +63,16 @@ namespace Unity.Android
 
             Directory.CreateDirectory(ReportDirectory);
 
-            using (var player = new AndroidJavaClass(k_UnityPlayerClass))
-            using (var activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
-            using (var watchdog = new AndroidJavaClass(k_JavaClass))
-            {
-                watchdog.CallStatic("start",
-                    activity,
-                    ReportDirectory,
-                    settings.anrTimeoutMs,
-                    settings.pollIntervalMs,
-                    settings.reportIntervalMs,
-                    Application.unityVersion,
-                    ScriptingBackend,
-                    BuildType,
-                    settings.worldReadableReports);
-            }
-
+            Watchdog.CallStatic("start",
+                AndroidApplication.currentActivity,
+                ReportDirectory,
+                settings.anrTimeoutMs,
+                settings.pollIntervalMs,
+                settings.reportIntervalMs,
+                Application.unityVersion,
+                ScriptingBackend,
+                BuildType,
+                settings.worldReadableReports);
         }
 
         /// <summary>Stops the watchdog. Reports already on disk are left untouched.</summary>
@@ -80,8 +81,7 @@ namespace Unity.Android
             if (!IsAndroidPlayer)
                 return;
 
-            using (var watchdog = new AndroidJavaClass(k_JavaClass))
-                watchdog.CallStatic("stop");
+            Watchdog.CallStatic("stop");
         }
 
         /// <summary>
