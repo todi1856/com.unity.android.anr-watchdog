@@ -37,7 +37,7 @@ static class AnrSampleReportFixture
             reportTimeStamp = "2026-09-11 13:26:41 UTC",
             anrTimeMs = 3005,
             packageName = "com.UnityTechnologies.ANRWatchdogDemo",
-            contextClassName = "UnityPlayerGameActivity",
+            entry = "com.unity3d.player.UnityPlayerGameActivity",
             unityVersion = "6000.0.74f1",
             deviceModel = "Google Pixel 9 Pro Fold",
             deviceFingerPrint = "google/comet/comet:16/CP1A.260305.018/14887507:user/release-keys",

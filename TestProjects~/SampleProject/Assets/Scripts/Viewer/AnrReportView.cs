@@ -43,7 +43,7 @@ static class AnrReportView
 
         Add(lines, LineKind.Field, $"Type: {report.reportType}");
         Add(lines, LineKind.Field, $"Stalled for {report.anrTimeMs} ms");
-        Add(lines, LineKind.Field, $"Package: {report.packageName}   Context: {report.contextClassName}");
+        Add(lines, LineKind.Field, $"Package: {report.packageName}   Entry: {report.entry}");
         Add(lines, LineKind.Field, $"Unity {report.unityVersion}   {report.scriptingBackend}   {report.buildType}");
         Add(lines, LineKind.Field, $"Device: {report.deviceModel}   API {report.deviceApiLevel}   {report.abi}");
         Add(lines, LineKind.Field, $"Fingerprint: {report.deviceFingerPrint}");

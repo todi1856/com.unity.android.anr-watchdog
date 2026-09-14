@@ -77,7 +77,11 @@ namespace Unity.Android
         public long anrTimeMs;
 
         public string packageName;
-        public string contextClassName;
+        /// <summary>
+        /// Activity the app was running, as Activity.getLocalClassName() reports it - the entry
+        /// point the report was taken from.
+        /// </summary>
+        public string entry;
         public string unityVersion;
         public string deviceModel;
         public string deviceFingerPrint;

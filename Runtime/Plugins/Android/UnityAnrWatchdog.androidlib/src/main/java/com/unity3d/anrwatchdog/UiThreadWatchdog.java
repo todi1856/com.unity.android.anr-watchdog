@@ -212,7 +212,7 @@ class UiThreadWatchdog extends Thread
         jsonObject.put("reportTimeStamp", getCurrentDateTimeUTC());
         jsonObject.put("anrTimeMs", anrTimeMs);
         jsonObject.put("packageName", m_Context.getPackageName());
-        jsonObject.put("contextClassName", m_Context.getClass().getSimpleName());
+        jsonObject.put("entry", m_Activity.getLocalClassName());
         jsonObject.put("unityVersion", m_UnityVersion);
         jsonObject.put("deviceModel", String.format(Locale.ROOT, "%s %s", Build.MANUFACTURER, Build.MODEL));
         jsonObject.put("deviceFingerPrint", Build.FINGERPRINT);
