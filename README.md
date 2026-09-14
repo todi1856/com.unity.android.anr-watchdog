@@ -85,10 +85,10 @@ Nothing watches the report directory for you: the package writes reports and lea
 * **anrTimeoutMs** (default `3000`) - how long the Android UI thread must be stuck before it counts as an ANR. Lower than Android's own threshold, so the stall is captured before the system kills the app.
 * **pollIntervalMs** (default `300`) - how often the watchdog thread checks the Android UI thread.
 * **reportIntervalMs** (default `10000`) - minimum interval between two reports, so a UI thread that stays stuck does not produce a report on every check.
-* **prettyJson** (default `true`) - write reports indented, so they can be read as they are. Turning it off roughly halves the file at the cost of needing a formatter to read one by hand; the Editor's report window does not care either way.
-* **worldReadableReports** (default `true`) - write reports as `0644` rather than owner-only `0600`.
+* **prettyJson** (default `false`) - write reports indented, so they can be read as they are. Off by default because it roughly doubles the file and a shipping app uploads reports rather than reading them by hand; the Editor's report window does not care either way. Turn it on while debugging on a device.
+* **worldReadableReports** (default `false`) - write reports as `0644` rather than owner-only `0600`.
 
-  **Leave this on if you want to pull reports off the device with `adb pull`.** `adb` runs as the `shell` user, not as your app, so it cannot read a file the app wrote owner-only:
+  **Turn this on if you want to pull reports off the device with `adb pull`.** `adb` runs as the `shell` user, not as your app, so it cannot read a file the app wrote owner-only:
 
   ```
   adb pull /storage/emulated/0/Android/data/<package>/files/anr/anr-20260911-143114-797.json
@@ -96,7 +96,7 @@ Nothing watches the report directory for you: the package writes reports and lea
 
   Two things make this less straightforward than it looks. App processes run with `umask 0077`, which masks the mode passed to `open()` back down to `0600` - the package therefore calls `fchmod` explicitly, which the umask does not apply to. And the emulated storage volume synthesizes its own permissions, so it is free to ignore the request; check what actually landed with `adb shell ls -l` on the report directory.
 
-  Set it to `false` to keep the files owner-only. Reports contain thread names and stacks, no user data, and under scoped storage other apps cannot reach your `Android/data` directory whatever the mode says - so the practical exposure is small either way. If your project writes to internal storage instead (`/data/user/0/<package>/files`), the mode is honoured properly there, and reports come off the device with `adb exec-out run-as <package> cat ...` rather than `adb pull`.
+  Left off, the files stay owner-only, which is the right default for a shipping app. The exposure either way is small - reports contain thread names and stacks, no user data, and under scoped storage other apps cannot reach your `Android/data` directory whatever the mode says. If your project writes to internal storage instead (`/data/user/0/<package>/files`), the mode is honoured properly there, and reports come off the device with `adb exec-out run-as <package> cat ...` rather than `adb pull`.
 
 ## Reports
 

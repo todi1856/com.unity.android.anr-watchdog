@@ -45,7 +45,9 @@ public class AnrSampleWindow : MonoBehaviour
     AnrReport m_LastReport;
     List<AnrReportView.Line> m_ReportLines = new List<AnrReportView.Line>();
 
-    AnrWatchdogSettings m_Settings = AnrWatchdogSettings.Default;
+    // The same settings Entry starts with, so the Start/Stop button does not quietly restart the
+    // watchdog with different ones.
+    readonly AnrWatchdogSettings m_Settings = AnrSampleSettings.Create();
 
     float m_NextStatusRefresh;
     float m_NextReportPoll;

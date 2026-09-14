@@ -26,9 +26,10 @@ namespace Unity.Android
 
         /// <summary>
         /// Write reports as 0644 instead of 0600, so anything on the device that can reach the
-        /// report directory can read them. Reports hold thread names and stacks, no user data.
+        /// report directory can read them. Off by default; reports hold thread names and stacks,
+        /// no user data, so turning it on costs little.
         /// <para>
-        /// Leave this on to pull reports with "adb pull": adb runs as the shell user rather than
+        /// Turn this on to pull reports with "adb pull": adb runs as the shell user rather than
         /// as the app, and cannot read a file written owner-only.
         /// </para>
         /// <para>
@@ -40,10 +41,10 @@ namespace Unity.Android
         public bool worldReadableReports;
 
         /// <summary>
-        /// Write reports indented, so they can be read as they are. Turning this off roughly halves
-        /// the file - a report with a hundred threads runs to a few hundred kilobytes - at the cost
-        /// of being unreadable without a formatter. The Editor's report window does not care either
-        /// way.
+        /// Write reports indented, so they can be read as they are. Off by default: indentation
+        /// roughly doubles the file - a report with a hundred threads already runs to a few hundred
+        /// kilobytes - and a shipping app uploads reports rather than reading them by hand. The
+        /// Editor's report window does not care either way.
         /// </summary>
         public bool prettyJson;
 
@@ -52,8 +53,11 @@ namespace Unity.Android
             anrTimeoutMs = 3000,
             pollIntervalMs = 300,
             reportIntervalMs = 10000,
-            worldReadableReports = true,
-            prettyJson = true
+
+            // Both off by default: the conservative choice for a shipping app, where reports are
+            // uploaded by code rather than read by hand. Turn them on while debugging on a device.
+            worldReadableReports = false,
+            prettyJson = false
         };
     }
 }

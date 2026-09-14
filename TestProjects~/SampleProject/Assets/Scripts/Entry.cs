@@ -24,7 +24,8 @@ public class Entry : MonoBehaviour
 
         // Clearing before starting, so a report written moments from now is not deleted unread.
         AnrWatchdog.ClearReports();
-        AnrWatchdog.Start();
+
+        AnrWatchdog.Start(AnrSampleSettings.Create());
 
         AnrWatchdog.GameState = "Game Started";
     }
