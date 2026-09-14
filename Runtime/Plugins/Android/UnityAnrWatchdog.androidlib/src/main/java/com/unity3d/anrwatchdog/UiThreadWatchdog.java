@@ -1,11 +1,15 @@
 package com.unity3d.anrwatchdog;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.DisplayMetrics;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -64,6 +68,14 @@ class UiThreadWatchdog extends Thread
 
     private boolean m_WorldReadableReports = true;
 
+    // Written from the Unity main thread, read from the watchdog thread.
+    private volatile String m_GameState = "";
+
+    // Read once at construction: asking the PackageManager while the UI thread is stuck would be
+    // one more thing that can block.
+    private final String m_AppVersion;
+    private final long m_AppVersionCode;
+
     UiThreadWatchdog(Context context, Activity activity, File reportDirectory) {
         m_Context = context;
         m_Activity = activity;
@@ -71,6 +83,20 @@ class UiThreadWatchdog extends Thread
         m_ANRReportIntervalMs = 10000;
         m_PollIntervalMs = 300;
         m_ANRTimeoutMs = 3000;
+
+        String appVersion = "";
+        long appVersionCode = 0;
+        try {
+            PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            appVersion = packageInfo.versionName != null ? packageInfo.versionName : "";
+            appVersionCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                ? packageInfo.getLongVersionCode()
+                : packageInfo.versionCode;
+        } catch (PackageManager.NameNotFoundException e) {
+            logMessage("Could not read the app version: " + e);
+        }
+        m_AppVersion = appVersion;
+        m_AppVersionCode = appVersionCode;
     }
 
     /**
@@ -107,6 +133,14 @@ class UiThreadWatchdog extends Thread
      */
     void setWorldReadableReports(boolean worldReadable) {
         m_WorldReadableReports = worldReadable;
+    }
+
+    /**
+     * What the game is doing - "loading", "menu", "level 3". Only the game knows this, so it is
+     * pushed in from C# and stored with every report taken from now on.
+     */
+    void setGameState(String state) {
+        m_GameState = state == null ? "" : state;
     }
 
     void setEngineMetadata(String unityVersion, String scriptingBackend, String buildType) {
@@ -219,15 +253,30 @@ class UiThreadWatchdog extends Thread
         jsonObject.put("deviceApiLevel", Build.VERSION.SDK_INT);
         jsonObject.put("buildType", m_BuildType);
         jsonObject.put("scriptingBackend", m_ScriptingBackend);
+        jsonObject.put("appVersion", m_AppVersion);
+        jsonObject.put("appVersionCode", m_AppVersionCode);
         jsonObject.put("multiWindow", isInMultiWindowMode());
         jsonObject.put("orientation", getOrientation());
+        jsonObject.put("gameState", m_GameState);
+
+        // Whether the user was looking at the app when it stopped responding: an ANR in the
+        // background is a different problem, and Android treats it differently too.
+        ActivityManager.RunningAppProcessInfo processInfo = new ActivityManager.RunningAppProcessInfo();
+        ActivityManager.getMyMemoryState(processInfo);
+        jsonObject.put("foreground", processInfo.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE);
+        jsonObject.put("processImportance", processInfo.importance);
+
+        // Read off the resources rather than the decor view: touching views from this thread is
+        // not allowed, and the thread that owns them is the one that is stuck.
+        DisplayMetrics metrics = m_Context.getResources().getDisplayMetrics();
+        Configuration configuration = m_Context.getResources().getConfiguration();
+        jsonObject.put("windowWidthPx", metrics.widthPixels);
+        jsonObject.put("windowHeightPx", metrics.heightPixels);
+        jsonObject.put("windowWidthDp", configuration.screenWidthDp);
+        jsonObject.put("windowHeightDp", configuration.screenHeightDp);
+        jsonObject.put("densityDpi", metrics.densityDpi);
 
         jsonObject.put("javaThreads", jsonThreads);
-        // TODO:
-        // app version
-        // Foreground
-        // Window size ?
-        // State from the game - loading, playing
         return jsonObject;
     }
 

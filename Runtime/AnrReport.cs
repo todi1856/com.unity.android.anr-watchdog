@@ -88,8 +88,36 @@ namespace Unity.Android
         public int deviceApiLevel;
         public string buildType;
         public string scriptingBackend;
+
+        /// <summary>versionName from the app's manifest.</summary>
+        public string appVersion;
+
+        /// <summary>versionCode from the app's manifest.</summary>
+        public long appVersionCode;
+
+        /// <summary>
+        /// Whether the user was looking at the app when it stopped responding. A background ANR is
+        /// a different problem, and Android treats it differently too.
+        /// </summary>
+        public bool foreground;
+
+        /// <summary>Raw ActivityManager.RunningAppProcessInfo importance behind <see cref="foreground"/>.</summary>
+        public int processImportance;
+
         public bool multiWindow;
         public string orientation;
+
+        public int windowWidthPx;
+        public int windowHeightPx;
+        public int windowWidthDp;
+        public int windowHeightDp;
+        public int densityDpi;
+
+        /// <summary>
+        /// Whatever the game last set through <see cref="AnrWatchdog.GameState"/> - "loading",
+        /// "menu", "level 3". Empty when the game never set one.
+        /// </summary>
+        public string gameState;
 
         public string abi;
         public int processId;

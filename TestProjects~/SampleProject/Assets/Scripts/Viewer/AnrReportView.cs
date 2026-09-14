@@ -44,10 +44,15 @@ static class AnrReportView
         Add(lines, LineKind.Field, $"Type: {report.reportType}");
         Add(lines, LineKind.Field, $"Stalled for {report.anrTimeMs} ms");
         Add(lines, LineKind.Field, $"Package: {report.packageName}   Entry: {report.entry}");
+        Add(lines, LineKind.Field, $"App version: {report.appVersion} ({report.appVersionCode})");
+        Add(lines, LineKind.Field, $"Game state: {(string.IsNullOrEmpty(report.gameState) ? "<not set>" : report.gameState)}");
         Add(lines, LineKind.Field, $"Unity {report.unityVersion}   {report.scriptingBackend}   {report.buildType}");
         Add(lines, LineKind.Field, $"Device: {report.deviceModel}   API {report.deviceApiLevel}   {report.abi}");
         Add(lines, LineKind.Field, $"Fingerprint: {report.deviceFingerPrint}");
+        Add(lines, LineKind.Field, $"Foreground: {report.foreground} (importance {report.processImportance})");
         Add(lines, LineKind.Field, $"Orientation: {report.orientation}   Multi window: {report.multiWindow}");
+        Add(lines, LineKind.Field, $"Window: {report.windowWidthPx}x{report.windowHeightPx} px, " +
+                                   $"{report.windowWidthDp}x{report.windowHeightDp} dp, {report.densityDpi} dpi");
         Add(lines, LineKind.Field, $"Process {report.processId}   User {report.userId}");
 
         AddModules(lines, report);

@@ -13,6 +13,10 @@ public final class UnityAnrWatchdog
 {
     private static UiThreadWatchdog s_Watchdog;
 
+    // Kept here as well as on the watchdog, so it survives a stop/start and can be set before the
+    // watchdog is ever started.
+    private static String s_GameState = "";
+
     private UnityAnrWatchdog() {}
 
     public static synchronized void start(
@@ -38,11 +42,23 @@ public final class UnityAnrWatchdog
         watchdog.setANRPollInterval(pollIntervalMs);
         watchdog.setANRReportInterval(reportIntervalMs);
         watchdog.setEngineMetadata(unityVersion, scriptingBackend, buildType);
+        watchdog.setGameState(s_GameState);
         watchdog.setWorldReadableReports(worldReadableReports);
         watchdog.setDaemon(true);
         watchdog.start();
 
         s_Watchdog = watchdog;
+    }
+
+    /**
+     * What the game is doing - "loading", "menu", "level 3" - recorded with every report from now
+     * on. Can be set before the watchdog is started.
+     */
+    public static synchronized void setGameState(String state)
+    {
+        s_GameState = state == null ? "" : state;
+        if (s_Watchdog != null)
+            s_Watchdog.setGameState(s_GameState);
     }
 
     public static synchronized void stop()

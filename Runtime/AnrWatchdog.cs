@@ -47,6 +47,29 @@ namespace Unity.Android
         /// </summary>
         static bool IsAndroidPlayer => Application.platform == RuntimePlatform.Android;
 
+        /// <summary>
+        /// What the game is doing - "loading", "menu", "level 3" - recorded with every report from
+        /// now on, so a report says what the app was busy with rather than only which threads were
+        /// stuck. Only the game knows this, so nothing sets it for you.
+        /// <para>
+        /// Can be set before <see cref="Start"/> and survives a stop/start. Set it from the Unity
+        /// main thread.
+        /// </para>
+        /// </summary>
+        public static string GameState
+        {
+            get => s_GameState;
+            set
+            {
+                s_GameState = value ?? string.Empty;
+
+                if (IsAndroidPlayer)
+                    Watchdog.CallStatic("setGameState", s_GameState);
+            }
+        }
+
+        static string s_GameState = string.Empty;
+
         /// <summary>Starts the watchdog with <see cref="AnrWatchdogSettings.Default"/>.</summary>
         public static void Start() => Start(AnrWatchdogSettings.Default);
 

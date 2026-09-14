@@ -91,7 +91,7 @@ Reports are written as JSON to `Application.persistentDataPath/anr/anr-<timestam
 
 Reading happens from C#, on the Unity main thread. An Android UI thread stall does not block the player loop, so a report written during one can usually be read in the same session, seconds after it happened. A stall of the Unity main thread blocks your code instead, and its report is read once the player loop runs again.
 
-A report contains device and build context (`packageName`, `unityVersion`, `deviceModel`, `deviceApiLevel`, `abi`, `orientation`, ...) plus two thread dumps:
+A report contains device and build context (`packageName`, `entry`, `appVersion`, `unityVersion`, `deviceModel`, `deviceApiLevel`, `abi`, `orientation`, window size, `foreground`, ...) plus two thread dumps:
 
 * **javaThreads** - name, id, state, priority and the Java stack of every thread, from `Thread.getAllStackTraces()`.
 * **nativeThreads** - name, id, state (from `/proc/<tid>/status`), priority (from `/proc/<tid>/stat`) and the native stack of every thread in the process.
@@ -123,6 +123,16 @@ The metadata table shows every field of the report; the tabs switch between Java
 A library stripped of DWARF but still carrying a symbol table - which is what `libunity.so` normally is - resolves to function names anyway: anything `llvm-symbolizer` leaves unresolved gets a second pass through `llvm-nm`, naming the function an address falls inside plus its offset (`SomeFunction +0x24`). Those frames show `<symbol table only, no line info>` as their source, since a symbol table has no file or line data and cannot recover inlined frames.
 
 Resolution runs `llvm-symbolizer` from the NDK the editor is configured with - one process per library, with all of that library's addresses on stdin, so a thousand-frame report costs a handful of process launches rather than a thousand. Symbol files are matched by name, accepting `libunity.so`, `libunity.sym.so`, `libunity.so.debug` and similar, preferring the subfolder that matches the report's ABI. Each library's `buildId` is checked against the symbol file with `llvm-readelf`, and a mismatch is reported rather than silently producing plausible but wrong names.
+
+### Recording what the game was doing
+
+A report says which threads were stuck, not what the app was busy with. Only the game knows that, so set it:
+
+```csharp
+AnrWatchdog.GameState = "loading level 3";
+```
+
+Whatever was set last is stored with every report from then on, in the `gameState` field. It can be set before `Start()`, survives a stop/start, and is free-form - a scene name, a loading step, whatever makes a report legible six months later. Set it from the Unity main thread.
 
 ## How it works
 
