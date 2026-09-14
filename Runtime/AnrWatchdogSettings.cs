@@ -28,9 +28,13 @@ namespace Unity.Android
         /// Write reports as 0644 instead of 0600, so anything on the device that can reach the
         /// report directory can read them. Reports hold thread names and stacks, no user data.
         /// <para>
+        /// Leave this on to pull reports with "adb pull": adb runs as the shell user rather than
+        /// as the app, and cannot read a file written owner-only.
+        /// </para>
+        /// <para>
         /// App processes run with umask 0077, so this takes an explicit fchmod - and the emulated
-        /// storage volume synthesizes its own permissions and may ignore it. Set it to false to
-        /// leave the files owner-only.
+        /// storage volume synthesizes its own permissions and may ignore it, so check the result
+        /// with "adb shell ls -l". Set it to false to leave the files owner-only.
         /// </para>
         /// </summary>
         public bool worldReadableReports;

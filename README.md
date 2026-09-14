@@ -43,7 +43,13 @@ public class AnrWatchdogBootstrap : MonoBehaviour
 {
     void Start()
     {
-        // Reports from the previous session, including the one that killed it.
+        // Whatever the previous session left behind, including the report from an ANR that killed
+        // it. Logging is only an example - this is where a real integration ships the report off
+        // the device for offline diagnostics: upload it to a crash reporting service, your own
+        // backend, or anywhere you can read it later. Each report is a self-contained JSON file,
+        // still on disk at report.sourcePath, carrying the build ids needed to symbolicate its
+        // native frames against symbols.zip once it arrives. The package itself never touches the
+        // network, so nothing leaves the device unless you send it.
         foreach (var report in AnrWatchdog.GetReports())
             Debug.Log($"ANR after {report.anrTimeMs} ms, {report.javaThreads.Length} java / " +
                       $"{report.nativeThreads.Length} native threads captured");
@@ -65,7 +71,17 @@ Nothing watches the report directory for you: the package writes reports and lea
 * **anrTimeoutMs** (default `3000`) - how long the Android UI thread must be stuck before it counts as an ANR. Lower than Android's own threshold, so the stall is captured before the system kills the app.
 * **pollIntervalMs** (default `300`) - how often the watchdog thread checks the Android UI thread.
 * **reportIntervalMs** (default `10000`) - minimum interval between two reports, so a UI thread that stays stuck does not produce a report on every check.
-* **worldReadableReports** (default `true`) - write reports as `0644` rather than owner-only `0600`. App processes run with `umask 0077`, so this takes an explicit `fchmod`, and the emulated storage volume synthesizes its own permissions and may ignore it. Set to `false` to leave the files owner-only.
+* **worldReadableReports** (default `true`) - write reports as `0644` rather than owner-only `0600`.
+
+  **Leave this on if you want to pull reports off the device with `adb pull`.** `adb` runs as the `shell` user, not as your app, so it cannot read a file the app wrote owner-only:
+
+  ```
+  adb pull /storage/emulated/0/Android/data/<package>/files/anr/anr-20260911-143114-797.json
+  ```
+
+  Two things make this less straightforward than it looks. App processes run with `umask 0077`, which masks the mode passed to `open()` back down to `0600` - the package therefore calls `fchmod` explicitly, which the umask does not apply to. And the emulated storage volume synthesizes its own permissions, so it is free to ignore the request; check what actually landed with `adb shell ls -l` on the report directory.
+
+  Set it to `false` to keep the files owner-only. Reports contain thread names and stacks, no user data, and under scoped storage other apps cannot reach your `Android/data` directory whatever the mode says - so the practical exposure is small either way. If your project writes to internal storage instead (`/data/user/0/<package>/files`), the mode is honoured properly there, and reports come off the device with `adb exec-out run-as <package> cat ...` rather than `adb pull`.
 
 ## Reports
 
