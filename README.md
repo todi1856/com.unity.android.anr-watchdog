@@ -245,7 +245,7 @@ Whatever was set last is stored with every report from then on, in the `gameStat
 ## How it works
 
 * `UiThreadWatchdog` (Java) posts a ticker `Runnable` to the Android UI thread's `Looper`. If the ticker has not run for `anrTimeoutMs`, it serializes `Thread.getAllStackTraces()` and the device context to JSON and calls into native code.
-* The native library enumerates `/proc/self/task`, installs a handler for a real-time signal and interrupts each thread in turn. Each interrupted thread unwinds itself with `_Unwind_Backtrace` into a preallocated buffer, then signals the watchdog thread through a semaphore.
+* The native library enumerates `/proc/self/task`, installs a handler for a real-time signal and interrupts each thread in turn. Each interrupted thread walks its own frame pointer chain into a preallocated buffer, starting from the registers the kernel saved when it delivered the signal, and flags the slot as done for the watchdog thread to pick up.
 * Addresses are resolved to libraries with `dladdr` afterwards, on the watchdog thread - the signal handler itself allocates nothing and takes no locks, because a thread stalled mid-ANR may well be holding the allocator's.
 * Build ids come from one `dl_iterate_phdr` pass per report, read out of each library's mapped `PT_NOTE` segment - no file access, and it works on stripped libraries.
 * The native dump is merged into the Java report and written to disk.
@@ -279,7 +279,7 @@ The native library is compiled from source for every ABI of the build, by the Gr
 ## Known limitations
 
 * Native frames are addresses only; symbolication is an offline step.
-* Unwinding starts inside the signal handler, so the top frames of each native stack are the handler itself.
+* Native stacks come from walking frame pointers, not from unwind tables, so a library compiled without frame pointers contributes a short stack or none at all. `_Unwind_Backtrace` would do better, but it cannot be used from a signal handler: crossing the signal trampoline into a frame with no unwind information - the vdso, hand written assembly, JIT code - faults inside the unwinder rather than stopping.
 * The capture signal is `SIGRTMIN + 4`. It deliberately avoids `SIGUSR1`/`SIGUSR2`, which Mono uses, but a third-party library installing a handler for the same real-time signal would conflict.
 * A thread wedged in an uninterruptible kernel state - flash I/O, a page fault on a file mapping, some binder transactions - cannot run the capture signal handler: the kernel holds the signal pending until the syscall returns. Such a thread is reported with an empty stack after a 500 ms timeout, alongside the `/proc/<tid>/status` state that explains it, usually `D (disk sleep)`. Threads are captured one at a time, so this timeout is paid per unresponsive thread.
 * At most 256 threads are captured; beyond that they are still listed, without stacks.

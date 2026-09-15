@@ -13,8 +13,8 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #include <sys/syscall.h>
+#include <sys/ucontext.h>
 #include <unistd.h>
-#include <unwind.h>
 
 namespace anrwatchdog
 {
@@ -50,10 +50,16 @@ namespace anrwatchdog
         std::atomic<size_t> s_SlotCount{0};
         std::atomic<bool> s_HandlerInstalled{false};
 
-        struct UnwindState
+        // How far above the interrupted stack pointer a frame pointer may still be believed. Stacks
+        // are contiguous, so this keeps a garbage chain from being dereferenced into a fault.
+        constexpr uintptr_t kMaxStackSpan = 8 * 1024 * 1024;
+
+        struct Registers
         {
-            CaptureSlot* slot;
-            size_t count;
+            uintptr_t pc;
+            uintptr_t lr;
+            uintptr_t fp;
+            uintptr_t sp;
         };
 
         pid_t GetCurrentThreadId()
@@ -61,25 +67,94 @@ namespace anrwatchdog
             return static_cast<pid_t>(syscall(SYS_gettid));
         }
 
-        _Unwind_Reason_Code UnwindCallback(_Unwind_Context* context, void* argument)
+        bool ReadRegisters(const ucontext_t* context, Registers& registers)
         {
-            UnwindState* state = static_cast<UnwindState*>(argument);
+#if defined(__aarch64__)
+            registers.pc = context->uc_mcontext.pc;
+            registers.lr = context->uc_mcontext.regs[30];
+            registers.fp = context->uc_mcontext.regs[29];
+            registers.sp = context->uc_mcontext.sp;
+            return true;
+#elif defined(__arm__)
+            registers.pc = context->uc_mcontext.arm_pc;
+            registers.lr = context->uc_mcontext.arm_lr;
+            registers.fp = context->uc_mcontext.arm_fp;
+            registers.sp = context->uc_mcontext.arm_sp;
+            return true;
+#elif defined(__x86_64__)
+            registers.pc = static_cast<uintptr_t>(context->uc_mcontext.gregs[REG_RIP]);
+            registers.lr = 0;
+            registers.fp = static_cast<uintptr_t>(context->uc_mcontext.gregs[REG_RBP]);
+            registers.sp = static_cast<uintptr_t>(context->uc_mcontext.gregs[REG_RSP]);
+            return true;
+#elif defined(__i386__)
+            registers.pc = static_cast<uintptr_t>(context->uc_mcontext.gregs[REG_EIP]);
+            registers.lr = 0;
+            registers.fp = static_cast<uintptr_t>(context->uc_mcontext.gregs[REG_EBP]);
+            registers.sp = static_cast<uintptr_t>(context->uc_mcontext.gregs[REG_ESP]);
+            return true;
+#else
+            (void)context;
+            (void)registers;
+            return false;
+#endif
+        }
 
-            uintptr_t pc = _Unwind_GetIP(context);
-            if (pc == 0)
-                return _URC_END_OF_STACK;
+        /// Walks the frame pointer chain of the interrupted thread, starting from the registers the
+        /// kernel saved when it delivered the signal.
+        ///
+        /// _Unwind_Backtrace would give richer stacks, but it cannot be used here: it walks the
+        /// handler's own stack, and crossing the signal trampoline into a frame without unwind
+        /// information - the vdso, hand written assembly, JIT code - faults inside the unwinder
+        /// instead of stopping. Reading memory is the only thing that is safe in this context.
+        size_t WalkFramePointers(const ucontext_t* context, uintptr_t* frames, size_t capacity)
+        {
+            Registers registers;
+            if (context == nullptr || !ReadRegisters(context, registers))
+                return 0;
 
-            if (state->count >= kMaxFrames)
-                return _URC_END_OF_STACK;
+            size_t count = 0;
 
-            state->slot->frames[state->count++] = pc;
-            return _URC_NO_REASON;
+            // Starting at the interrupted instruction rather than inside the handler, so the top
+            // of the stack is where the thread actually was.
+            if (registers.pc != 0 && count < capacity)
+                frames[count++] = registers.pc;
+
+            // A leaf function may not have set up a frame yet, so on architectures with a link
+            // register its caller is taken from there.
+            if (registers.lr != 0 && count < capacity)
+                frames[count++] = registers.lr;
+
+            uintptr_t fp = registers.fp;
+            const uintptr_t lowest = registers.sp;
+            const uintptr_t highest = registers.sp + kMaxStackSpan;
+
+            while (count < capacity && fp >= lowest && fp < highest && (fp & (sizeof(uintptr_t) - 1)) == 0)
+            {
+                const auto* frame = reinterpret_cast<const uintptr_t*>(fp);
+                const uintptr_t callerFp = frame[0];
+                const uintptr_t returnAddress = frame[1];
+
+                if (returnAddress == 0)
+                    break;
+
+                frames[count++] = returnAddress;
+
+                // The chain has to move up the stack; anything else is garbage or a loop.
+                if (callerFp <= fp)
+                    break;
+
+                fp = callerFp;
+            }
+
+            return count;
         }
 
         /// The target thread is interrupted mid-ANR and very likely holds the malloc lock, so this
-        /// must not allocate or take a lock. It writes raw program counters into its own slot and
-        /// nothing else; symbolication happens on the watchdog thread afterwards.
-        void CaptureSignalHandler(int /*signum*/, siginfo_t* /*info*/, void* /*context*/)
+        /// must not allocate, take a lock, or call anything that might - the unwinder included. It
+        /// reads registers and stack memory into its own slot and nothing else; symbolication
+        /// happens on the watchdog thread afterwards.
+        void CaptureSignalHandler(int /*signum*/, siginfo_t* /*info*/, void* context)
         {
             const pid_t self = GetCurrentThreadId();
             const size_t slotCount = s_SlotCount.load(std::memory_order_acquire);
@@ -95,10 +170,9 @@ namespace anrwatchdog
                 if (slot.done.load(std::memory_order_acquire))
                     return;
 
-                UnwindState state{&slot, 0};
-                _Unwind_Backtrace(&UnwindCallback, &state);
+                const size_t count = WalkFramePointers(static_cast<const ucontext_t*>(context), slot.frames, kMaxFrames);
 
-                slot.count.store(state.count, std::memory_order_release);
+                slot.count.store(count, std::memory_order_release);
                 slot.done.store(true, std::memory_order_release);
                 return;
             }

@@ -11,12 +11,10 @@ add_library(UnityAnrWatchdog SHARED
     NativeThreads.cpp
     ProcUtils.cpp)
 
-# Unwind tables are what _Unwind_Backtrace walks - without them the captured stacks are empty or
-# one frame deep on release builds.
+# Stacks are captured by walking the frame pointer chain, so frame pointers have to be there.
 target_compile_options(UnityAnrWatchdog PRIVATE
     -Wall
     -Wextra
-    -funwind-tables
     -fno-omit-frame-pointer)
 
 target_link_libraries(UnityAnrWatchdog log dl)
