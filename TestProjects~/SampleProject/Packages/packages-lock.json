@@ -1,12 +1,5 @@
 {
   "dependencies": {
-    "com.rubix.unity.android.device-explorer": {
-      "version": "https://github.com/Rubix1991/com.rubix.unity.android.device-explorer.git",
-      "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "750a4bccb390e125ee2adb88b202fea296e5f4a0"
-    },
     "com.unity.android.anr-watchdog": {
       "version": "file:../../..",
       "depth": 0,
