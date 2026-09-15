@@ -2,8 +2,6 @@
 
 A utility for detecting **ANR** (Application Not Responding) conditions in Unity players running on Android, and for reporting where every thread was when the Android UI thread stopped responding.
 
-[**Walkthrough video**](https://www.youtube.com/watch?v=6cbU-XhTFic) - the watchdog firing on a device, the report it writes, and symbolicating the native stacks in the Editor.
-
 > **This branch targets Unity 2021.3.** It differs from `main` in the parts that are version specific: the activity is fetched off `UnityPlayer` rather than `AndroidApplication`, the `.androidlib` uses the older Android Gradle Plugin DSL with the package declared in its manifest, and the Editor window builds its tables out of `ListView` rather than `MultiColumnListView`, with toolbar toggles in place of `TabView`.
 
 ### Which thread?
@@ -80,10 +78,12 @@ API 27 is the oldest version verified so far. The module still builds against wh
 
 1. In Unity, open **Window → Package Manager**.
 2. In the top-left corner, click the **+** button and select **Install package from Git URL**.
-3. Enter the following HTTPS url:
+3. Enter the following HTTPS url, where the `#2021.3` suffix selects this branch:
    ```
-   https://github.com/todi1856/com.unity.android.anr-watchdog.git
+   https://github.com/todi1856/com.unity.android.anr-watchdog.git#2021.3
    ```
+
+Without the suffix the Package Manager takes the default branch, `main`, which targets Unity 6 and does not compile here.
 
 ## Quick Start
 
