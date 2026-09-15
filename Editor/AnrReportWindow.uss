@@ -20,9 +20,19 @@
     margin-bottom: 2px;
 }
 
+/*
+    min-width: 0 on the field and its input: a text field holding a long path reports a wide
+    minimum size, and without this it refuses to shrink and pushes the buttons out of the window.
+*/
 .path-field {
     flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
     margin-right: 4px;
+}
+
+.path-field .unity-base-text-field__input {
+    min-width: 0;
 }
 
 /* Line the two text fields up with each other rather than with their label lengths. */
