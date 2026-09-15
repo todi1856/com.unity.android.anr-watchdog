@@ -14,21 +14,18 @@
             </engine:VisualElement>
         </engine:VisualElement>
 
-        <!-- Report metadata above, threads and their stacks below, both resizable. -->
+        <!-- Report metadata above, threads and their stacks below, both resizable. The tables
+             themselves are built in code: MultiColumnListView does not exist in 2021.3. -->
         <engine:TwoPaneSplitView fixed-pane-index="0" fixed-pane-initial-dimension="150" orientation="Vertical">
 
-            <engine:MultiColumnListView name="listMetadata" show-alternating-row-backgrounds="All" class="list">
-                <engine:Columns>
-                    <engine:Column name="Name" title="Field" width="220" />
-                    <engine:Column name="Value" title="Value" stretchable="true" />
-                </engine:Columns>
-            </engine:MultiColumnListView>
+            <engine:VisualElement name="metadataTable" class="pane" />
 
             <engine:VisualElement class="pane">
-                <engine:TabView name="tabThreads" class="tabs">
-                    <engine:Tab label="Java threads" name="tabJavaThreads" />
-                    <engine:Tab label="Native threads" name="tabNativeThreads" />
-                </engine:TabView>
+                <!-- Two toggles rather than a TabView, which arrived in Unity 6. -->
+                <editor:Toolbar class="tabs">
+                    <editor:ToolbarToggle name="toggleJavaThreads" text="Java threads" class="tab" />
+                    <editor:ToolbarToggle name="toggleNativeThreads" text="Native threads" class="tab" />
+                </editor:Toolbar>
 
                 <engine:TwoPaneSplitView fixed-pane-index="0" fixed-pane-initial-dimension="340" orientation="Horizontal">
 
@@ -37,35 +34,12 @@
                              into the native ones. Only the active tab's field is shown. -->
                         <editor:ToolbarSearchField name="fieldJavaThreadFilter" class="filter" />
                         <editor:ToolbarSearchField name="fieldNativeThreadFilter" class="filter" />
-                        <engine:MultiColumnListView name="listThreads" show-alternating-row-backgrounds="All" class="list">
-                            <engine:Columns>
-                                <engine:Column name="Name" title="Thread" stretchable="true" />
-                                <engine:Column name="Id" title="Id" width="64" />
-                                <engine:Column name="State" title="State" width="104" />
-                                <engine:Column name="Priority" title="Prio" width="48" />
-                                <engine:Column name="Frames" title="Frames" width="58" />
-                            </engine:Columns>
-                        </engine:MultiColumnListView>
+                        <engine:VisualElement name="threadsTable" class="pane" />
                     </engine:VisualElement>
 
                     <engine:VisualElement class="pane">
-                        <engine:MultiColumnListView name="listJavaStack" show-alternating-row-backgrounds="All" class="list">
-                            <engine:Columns>
-                                <engine:Column name="Frame" title="#" width="38" />
-                                <engine:Column name="Class" title="Class" stretchable="true" />
-                                <engine:Column name="Method" title="Method" stretchable="true" />
-                                <engine:Column name="Source" title="Source" width="220" />
-                            </engine:Columns>
-                        </engine:MultiColumnListView>
-                        <engine:MultiColumnListView name="listNativeStack" show-alternating-row-backgrounds="All" class="list">
-                            <engine:Columns>
-                                <engine:Column name="Frame" title="#" width="38" />
-                                <engine:Column name="Address" title="Address" width="140" />
-                                <engine:Column name="Library" title="Library" width="170" />
-                                <engine:Column name="Function" title="Function" stretchable="true" />
-                                <engine:Column name="Source" title="Source" stretchable="true" />
-                            </engine:Columns>
-                        </engine:MultiColumnListView>
+                        <engine:VisualElement name="javaStackTable" class="pane" />
+                        <engine:VisualElement name="nativeStackTable" class="pane" />
                     </engine:VisualElement>
 
                 </engine:TwoPaneSplitView>

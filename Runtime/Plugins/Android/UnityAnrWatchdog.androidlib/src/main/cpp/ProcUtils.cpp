@@ -1,5 +1,8 @@
 #include "ProcUtils.h"
 
+// TEMP_FAILURE_RETRY expands to a loop testing errno against EINTR, so errno.h has to be here
+// rather than relied on to arrive through another header.
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

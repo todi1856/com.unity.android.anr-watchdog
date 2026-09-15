@@ -49,6 +49,45 @@
     flex-shrink: 0;
 }
 
+.tab {
+    min-width: 110px;
+    -unity-text-align: middle-center;
+}
+
+/* Tables are assembled in code - see AnrTable - so their look lives here. */
+
+.table {
+    flex-grow: 1;
+}
+
+.table-header {
+    flex-direction: row;
+    flex-shrink: 0;
+    background-color: rgba(0, 0, 0, 0.08);
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(0, 0, 0, 0.35);
+}
+
+.table-header-cell {
+    -unity-font-style: bold;
+}
+
+.table-row {
+    flex-direction: row;
+}
+
+.table-cell {
+    padding-left: 4px;
+    padding-right: 4px;
+    overflow: hidden;
+    white-space: nowrap;
+    -unity-text-align: middle-left;
+}
+
+.table-list {
+    flex-grow: 1;
+}
+
 .filter {
     flex-shrink: 0;
     margin: 3px 4px 3px 4px;

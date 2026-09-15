@@ -58,7 +58,7 @@
                 A ListView of single-line items: it virtualizes a report with a thousand stack
                 frames, and fixed-height rows keep every line on its own baseline.
             -->
-            <ui:ListView name="report-list" class="report-list" fixed-item-height="26" />
+            <ui:ListView name="report-list" class="report-list" />
         </ui:VisualElement>
 
     </ui:VisualElement>

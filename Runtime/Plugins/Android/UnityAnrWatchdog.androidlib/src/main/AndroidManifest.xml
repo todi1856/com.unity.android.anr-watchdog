@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     The watchdog needs no permissions and no components - it is started from C# through
-    Unity.Android.AnrWatchdog. The manifest exists only so Gradle treats this folder as a library
-    module. Note that AGP 8 forbids the package attribute here; see namespace in build.gradle.
+    Unity.Android.AnrWatchdog. The manifest exists so Gradle treats this folder as a library
+    module, and to declare the package: the Android Gradle Plugin that Unity 2021.3 ships predates
+    the build.gradle namespace DSL, which replaces this from AGP 8 on.
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.unity3d.anrwatchdog" />

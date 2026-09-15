@@ -1,7 +1,6 @@
 using System;
 using System.Threading;
 using UnityEngine;
-using UnityEngine.Android;
 
 /// <summary>
 /// The two ways of making this app stop responding. They are not equivalent: Android watches its
@@ -24,7 +23,8 @@ static class AnrSampleStalls
 
         try
         {
-            var activity = AndroidApplication.currentActivity;
+            using var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+            using var activity = player.GetStatic<AndroidJavaObject>("currentActivity");
             if (activity == null)
             {
                 error = "No current activity";

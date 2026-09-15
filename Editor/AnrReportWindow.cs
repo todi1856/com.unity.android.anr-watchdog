@@ -20,36 +20,24 @@ namespace Unity.Android
         const string k_SymbolsPathKey = "Unity.Android.AnrWatchdog.SymbolsPath";
         const string k_FallbackUxml = "Packages/com.unity.android.anr-watchdog/Editor/AnrReportWindow.uxml";
 
-        // Column names, as the UXML declares them.
-        const string k_Name = "Name";
-        const string k_Value = "Value";
-        const string k_Id = "Id";
-        const string k_State = "State";
-        const string k_Priority = "Priority";
-        const string k_Frames = "Frames";
-        const string k_Frame = "Frame";
-        const string k_Class = "Class";
-        const string k_Method = "Method";
-        const string k_Source = "Source";
-        const string k_Address = "Address";
-        const string k_Library = "Library";
-        const string k_Function = "Function";
-
         TextField m_ReportPath;
         TextField m_SymbolsPath;
         Label m_Status;
-        MultiColumnListView m_Metadata;
-        MultiColumnListView m_Threads;
-        MultiColumnListView m_JavaStack;
-        MultiColumnListView m_NativeStack;
-        TabView m_Tabs;
+        ToolbarToggle m_JavaTab;
+        ToolbarToggle m_NativeTab;
         ToolbarSearchField m_JavaThreadFilter;
         ToolbarSearchField m_NativeThreadFilter;
 
-        // Serialized so the filters survive a domain reload - the window is rebuilt from scratch
-        // on every script recompile and on entering play mode.
+        AnrTable m_Metadata;
+        AnrTable m_Threads;
+        AnrTable m_JavaStack;
+        AnrTable m_NativeStack;
+
+        // Serialized so they survive a domain reload - the window is rebuilt from scratch on every
+        // script recompile and on entering play mode.
         [SerializeField] string m_JavaThreadFilterValue;
         [SerializeField] string m_NativeThreadFilterValue;
+        [SerializeField] bool m_NativeTabSelected;
 
         AnrReport m_Report;
         readonly List<KeyValuePair<string, string>> m_MetadataRows = new List<KeyValuePair<string, string>>();
@@ -60,7 +48,8 @@ namespace Unity.Android
         readonly List<AnrReport.JavaThread> m_JavaThreads = new List<AnrReport.JavaThread>();
         readonly List<AnrReport.NativeThread> m_NativeThreads = new List<AnrReport.NativeThread>();
 
-        bool NativeTabSelected => m_Tabs.selectedTabIndex == 1;
+        AnrReport.JavaStackFrame[] m_JavaFrames = Array.Empty<AnrReport.JavaStackFrame>();
+        AnrReport.NativeStackFrame[] m_NativeFrames = Array.Empty<AnrReport.NativeStackFrame>();
 
         [MenuItem("Window/Analysis/Android ANR Report")]
         public static void ShowWindow()
@@ -88,17 +77,10 @@ namespace Unity.Android
             m_ReportPath = rootVisualElement.Q<TextField>("fieldReportPath");
             m_SymbolsPath = rootVisualElement.Q<TextField>("fieldSymbolsPath");
             m_Status = rootVisualElement.Q<Label>("labelStatus");
-            m_Metadata = rootVisualElement.Q<MultiColumnListView>("listMetadata");
-            m_Threads = rootVisualElement.Q<MultiColumnListView>("listThreads");
-            m_JavaStack = rootVisualElement.Q<MultiColumnListView>("listJavaStack");
-            m_NativeStack = rootVisualElement.Q<MultiColumnListView>("listNativeStack");
-            m_Tabs = rootVisualElement.Q<TabView>("tabThreads");
+            m_JavaTab = rootVisualElement.Q<ToolbarToggle>("toggleJavaThreads");
+            m_NativeTab = rootVisualElement.Q<ToolbarToggle>("toggleNativeThreads");
             m_JavaThreadFilter = rootVisualElement.Q<ToolbarSearchField>("fieldJavaThreadFilter");
             m_NativeThreadFilter = rootVisualElement.Q<ToolbarSearchField>("fieldNativeThreadFilter");
-            m_JavaThreadFilter.tooltip = "Filter Java threads by name";
-            m_NativeThreadFilter.tooltip = "Filter native threads by name";
-            m_JavaThreadFilter.SetValueWithoutNotify(m_JavaThreadFilterValue ?? string.Empty);
-            m_NativeThreadFilter.SetValueWithoutNotify(m_NativeThreadFilterValue ?? string.Empty);
 
             m_ReportPath.value = EditorPrefs.GetString(k_ReportPathKey, string.Empty);
             m_SymbolsPath.value = EditorPrefs.GetString(k_SymbolsPathKey, string.Empty);
@@ -108,13 +90,12 @@ namespace Unity.Android
             rootVisualElement.Q<Button>("btnReload").clicked += () => LoadReport(m_ReportPath.value);
             rootVisualElement.Q<Button>("btnResolve").clicked += ResolveSymbols;
 
-            SetUpMetadataColumns();
-            SetUpThreadColumns();
-            SetUpJavaStackColumns();
-            SetUpNativeStackColumns();
+            BuildTables();
 
-            m_Tabs.activeTabChanged += (_, __) => RefreshThreads();
-            m_Threads.selectionChanged += _ => RefreshStack();
+            m_JavaThreadFilter.tooltip = "Filter Java threads by name";
+            m_NativeThreadFilter.tooltip = "Filter native threads by name";
+            m_JavaThreadFilter.SetValueWithoutNotify(m_JavaThreadFilterValue ?? string.Empty);
+            m_NativeThreadFilter.SetValueWithoutNotify(m_NativeThreadFilterValue ?? string.Empty);
             m_JavaThreadFilter.RegisterValueChangedCallback(changed =>
             {
                 m_JavaThreadFilterValue = changed.newValue;
@@ -126,10 +107,121 @@ namespace Unity.Android
                 RefreshThreads();
             });
 
+            // Clicking the toggle that is already on turns it off, so both are set explicitly
+            // rather than left to the toggles themselves.
+            m_JavaTab.RegisterValueChangedCallback(_ => SelectTab(false));
+            m_NativeTab.RegisterValueChangedCallback(_ => SelectTab(true));
+            SelectTab(m_NativeTabSelected);
+
             LoadReport(m_ReportPath.value);
 
             if (m_Report == null)
                 SetStatus("Browse to an ANR report - anr-*.json, pulled off the device - to begin.");
+        }
+
+        void BuildTables()
+        {
+            m_Metadata = new AnrTable(
+                new AnrTable.Column("Field", 220),
+                new AnrTable.Column("Value"));
+            m_Metadata.bindRow = (index, cells) =>
+            {
+                cells[0].text = m_MetadataRows[index].Key;
+                cells[1].text = m_MetadataRows[index].Value;
+            };
+            m_Metadata.itemsSource = m_MetadataRows;
+            rootVisualElement.Q<VisualElement>("metadataTable").Add(m_Metadata.root);
+
+            m_Threads = new AnrTable(
+                new AnrTable.Column("Thread"),
+                new AnrTable.Column("Id", 64),
+                new AnrTable.Column("State", 104),
+                new AnrTable.Column("Prio", 48),
+                new AnrTable.Column("Frames", 58));
+            m_Threads.bindRow = BindThreadRow;
+            m_Threads.selectionChanged += RefreshStack;
+            rootVisualElement.Q<VisualElement>("threadsTable").Add(m_Threads.root);
+
+            m_JavaStack = new AnrTable(
+                new AnrTable.Column("#", 38),
+                new AnrTable.Column("Class"),
+                new AnrTable.Column("Method"),
+                new AnrTable.Column("Source", 220));
+            m_JavaStack.bindRow = BindJavaFrameRow;
+            m_JavaStack.itemsSource = m_JavaFrames;
+            rootVisualElement.Q<VisualElement>("javaStackTable").Add(m_JavaStack.root);
+
+            m_NativeStack = new AnrTable(
+                new AnrTable.Column("#", 38),
+                new AnrTable.Column("Address", 140),
+                new AnrTable.Column("Library", 170),
+                new AnrTable.Column("Function"),
+                new AnrTable.Column("Source"));
+            m_NativeStack.bindRow = BindNativeFrameRow;
+            m_NativeStack.itemsSource = m_NativeFrames;
+            rootVisualElement.Q<VisualElement>("nativeStackTable").Add(m_NativeStack.root);
+        }
+
+        void BindThreadRow(int index, Label[] cells)
+        {
+            if (m_NativeTabSelected)
+            {
+                var thread = m_NativeThreads[index];
+                cells[0].text = thread.name;
+                cells[1].text = thread.id.ToString();
+                cells[2].text = thread.state;
+                cells[3].text = thread.priority.ToString();
+                cells[4].text = (thread.stackTrace?.Length ?? 0).ToString();
+            }
+            else
+            {
+                var thread = m_JavaThreads[index];
+                cells[0].text = thread.name;
+                cells[1].text = thread.id.ToString();
+                cells[2].text = thread.state;
+                cells[3].text = thread.priority.ToString();
+                cells[4].text = (thread.stackTrace?.Length ?? 0).ToString();
+            }
+        }
+
+        void BindJavaFrameRow(int index, Label[] cells)
+        {
+            var frame = m_JavaFrames[index];
+            cells[0].text = $"{index:00}";
+            cells[1].text = frame.className;
+            cells[2].text = frame.methodName;
+            cells[3].text = frame.lineNumber >= 0 ? $"{frame.fileName}:{frame.lineNumber}" : frame.fileName;
+        }
+
+        void BindNativeFrameRow(int index, Label[] cells)
+        {
+            var frame = m_NativeFrames[index];
+            cells[0].text = $"{index:00}";
+            cells[1].text = $"0x{frame.address:x16}";
+            cells[2].text = Path.GetFileName(frame.libraryName ?? string.Empty);
+
+            if (!m_Symbolicator.TryGetSymbol(frame.libraryName, frame.address, out var symbol))
+            {
+                cells[3].text = "<unresolved>";
+                cells[4].text = string.Empty;
+                return;
+            }
+
+            cells[3].text = symbol.inlinedFrames > 0
+                ? $"{symbol.function}  (+{symbol.inlinedFrames} inlined)"
+                : symbol.function;
+
+            // Says why there is no file:line rather than leaving the cell blank.
+            cells[4].text = symbol.fromSymbolTable ? "<symbol table only, no line info>" : symbol.source;
+        }
+
+        void SelectTab(bool native)
+        {
+            m_NativeTabSelected = native;
+            m_JavaTab.SetValueWithoutNotify(!native);
+            m_NativeTab.SetValueWithoutNotify(native);
+
+            RefreshThreads();
         }
 
         VisualTreeAsset LoadVisualTree() =>
@@ -232,19 +324,18 @@ namespace Unity.Android
             m_MetadataRows.Add(new KeyValuePair<string, string>("javaThreads", $"{m_Report.javaThreads?.Length ?? 0}"));
             m_MetadataRows.Add(new KeyValuePair<string, string>("nativeThreads", $"{m_Report.nativeThreads?.Length ?? 0}"));
 
-            m_Metadata.itemsSource = m_MetadataRows;
             m_Metadata.Rebuild();
         }
 
         void RefreshThreads()
         {
-            if (m_Report == null)
-                return;
-
             // Only the filter belonging to the visible tab is shown, but both lists are kept
             // filtered so switching tabs needs no extra work.
-            m_JavaThreadFilter.style.display = NativeTabSelected ? DisplayStyle.None : DisplayStyle.Flex;
-            m_NativeThreadFilter.style.display = NativeTabSelected ? DisplayStyle.Flex : DisplayStyle.None;
+            m_JavaThreadFilter.style.display = m_NativeTabSelected ? DisplayStyle.None : DisplayStyle.Flex;
+            m_NativeThreadFilter.style.display = m_NativeTabSelected ? DisplayStyle.Flex : DisplayStyle.None;
+
+            if (m_Report == null)
+                return;
 
             var javaFilter = m_JavaThreadFilter?.value ?? string.Empty;
             var nativeFilter = m_NativeThreadFilter?.value ?? string.Empty;
@@ -257,7 +348,7 @@ namespace Unity.Android
             m_NativeThreads.AddRange((m_Report.nativeThreads ?? Array.Empty<AnrReport.NativeThread>())
                 .Where(thread => Matches(thread.name, nativeFilter)));
 
-            m_Threads.itemsSource = NativeTabSelected
+            m_Threads.itemsSource = m_NativeTabSelected
                 ? (System.Collections.IList)m_NativeThreads
                 : m_JavaThreads;
 
@@ -271,21 +362,24 @@ namespace Unity.Android
 
         void RefreshStack()
         {
-            m_JavaStack.style.display = NativeTabSelected ? DisplayStyle.None : DisplayStyle.Flex;
-            m_NativeStack.style.display = NativeTabSelected ? DisplayStyle.Flex : DisplayStyle.None;
+            m_JavaStack.root.style.display = m_NativeTabSelected ? DisplayStyle.None : DisplayStyle.Flex;
+            m_NativeStack.root.style.display = m_NativeTabSelected ? DisplayStyle.Flex : DisplayStyle.None;
 
             var index = m_Threads.selectedIndex;
-            if (m_Report == null || index < 0 || m_Threads.itemsSource == null || index >= m_Threads.itemsSource.Count)
+            var threadCount = m_NativeTabSelected ? m_NativeThreads.Count : m_JavaThreads.Count;
+            if (m_Report == null || index < 0 || index >= threadCount)
                 return;
 
-            if (NativeTabSelected)
+            if (m_NativeTabSelected)
             {
-                m_NativeStack.itemsSource = m_NativeThreads[index].stackTrace ?? Array.Empty<AnrReport.NativeStackFrame>();
+                m_NativeFrames = m_NativeThreads[index].stackTrace ?? Array.Empty<AnrReport.NativeStackFrame>();
+                m_NativeStack.itemsSource = m_NativeFrames;
                 m_NativeStack.Rebuild();
             }
             else
             {
-                m_JavaStack.itemsSource = m_JavaThreads[index].stackTrace ?? Array.Empty<AnrReport.JavaStackFrame>();
+                m_JavaFrames = m_JavaThreads[index].stackTrace ?? Array.Empty<AnrReport.JavaStackFrame>();
+                m_JavaStack.itemsSource = m_JavaFrames;
                 m_JavaStack.Rebuild();
             }
         }
@@ -332,94 +426,5 @@ namespace Unity.Android
             .Sum(thread => thread.stackTrace?.Length ?? 0);
 
         void SetStatus(string message) => m_Status.text = message;
-
-        void SetUpMetadataColumns()
-        {
-            m_Metadata.columns[k_Name].makeCell = MakeCell;
-            m_Metadata.columns[k_Value].makeCell = MakeCell;
-            m_Metadata.columns[k_Name].bindCell = (element, i) => Text(element, m_MetadataRows[i].Key);
-            m_Metadata.columns[k_Value].bindCell = (element, i) => Text(element, m_MetadataRows[i].Value);
-        }
-
-        void SetUpThreadColumns()
-        {
-            foreach (var column in new[] { k_Name, k_Id, k_State, k_Priority, k_Frames })
-                m_Threads.columns[column].makeCell = MakeCell;
-
-            m_Threads.columns[k_Name].bindCell = (element, i) => Text(element,
-                NativeTabSelected ? m_NativeThreads[i].name : m_JavaThreads[i].name);
-            m_Threads.columns[k_Id].bindCell = (element, i) => Text(element,
-                NativeTabSelected ? m_NativeThreads[i].id.ToString() : m_JavaThreads[i].id.ToString());
-            m_Threads.columns[k_State].bindCell = (element, i) => Text(element,
-                NativeTabSelected ? m_NativeThreads[i].state : m_JavaThreads[i].state);
-            m_Threads.columns[k_Priority].bindCell = (element, i) => Text(element,
-                NativeTabSelected ? m_NativeThreads[i].priority.ToString() : m_JavaThreads[i].priority.ToString());
-            m_Threads.columns[k_Frames].bindCell = (element, i) => Text(element,
-                NativeTabSelected
-                    ? (m_NativeThreads[i].stackTrace?.Length ?? 0).ToString()
-                    : (m_JavaThreads[i].stackTrace?.Length ?? 0).ToString());
-        }
-
-        void SetUpJavaStackColumns()
-        {
-            foreach (var column in new[] { k_Frame, k_Class, k_Method, k_Source })
-                m_JavaStack.columns[column].makeCell = MakeCell;
-
-            m_JavaStack.columns[k_Frame].bindCell = (element, i) => Text(element, $"{i:00}");
-            m_JavaStack.columns[k_Class].bindCell = (element, i) => Text(element, JavaFrame(i).className);
-            m_JavaStack.columns[k_Method].bindCell = (element, i) => Text(element, JavaFrame(i).methodName);
-            m_JavaStack.columns[k_Source].bindCell = (element, i) =>
-            {
-                var frame = JavaFrame(i);
-                Text(element, frame.lineNumber >= 0 ? $"{frame.fileName}:{frame.lineNumber}" : frame.fileName);
-            };
-        }
-
-        void SetUpNativeStackColumns()
-        {
-            foreach (var column in new[] { k_Frame, k_Address, k_Library, k_Function, k_Source })
-                m_NativeStack.columns[column].makeCell = MakeCell;
-
-            m_NativeStack.columns[k_Frame].bindCell = (element, i) => Text(element, $"{i:00}");
-            m_NativeStack.columns[k_Address].bindCell = (element, i) => Text(element, $"0x{NativeFrame(i).address:x16}");
-            m_NativeStack.columns[k_Library].bindCell = (element, i) => Text(element, Path.GetFileName(NativeFrame(i).libraryName ?? string.Empty));
-            m_NativeStack.columns[k_Function].bindCell = (element, i) =>
-            {
-                var frame = NativeFrame(i);
-                if (!m_Symbolicator.TryGetSymbol(frame.libraryName, frame.address, out var symbol))
-                {
-                    Text(element, "<unresolved>");
-                    return;
-                }
-
-                Text(element, symbol.inlinedFrames > 0
-                    ? $"{symbol.function}  (+{symbol.inlinedFrames} inlined)"
-                    : symbol.function);
-            };
-            m_NativeStack.columns[k_Source].bindCell = (element, i) =>
-            {
-                var frame = NativeFrame(i);
-                if (!m_Symbolicator.TryGetSymbol(frame.libraryName, frame.address, out var symbol))
-                {
-                    Text(element, string.Empty);
-                    return;
-                }
-
-                // Says why there is no file:line rather than leaving the cell blank.
-                Text(element, symbol.fromSymbolTable ? "<symbol table only, no line info>" : symbol.source);
-            };
-        }
-
-        AnrReport.JavaStackFrame JavaFrame(int index) => (AnrReport.JavaStackFrame)m_JavaStack.itemsSource[index];
-
-        AnrReport.NativeStackFrame NativeFrame(int index) => (AnrReport.NativeStackFrame)m_NativeStack.itemsSource[index];
-
-        static VisualElement MakeCell()
-        {
-            var label = new Label { style = { marginLeft = 4, unityTextAlign = TextAnchor.MiddleLeft } };
-            return label;
-        }
-
-        static void Text(VisualElement element, string text) => ((Label)element).text = text;
     }
 }

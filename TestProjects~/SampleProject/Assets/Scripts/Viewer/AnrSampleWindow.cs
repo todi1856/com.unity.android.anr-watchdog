@@ -230,6 +230,10 @@ public class AnrSampleWindow : MonoBehaviour
     {
         m_ReportList.itemsSource = m_ReportLines;
         m_ReportList.selectionType = SelectionType.None;
+
+        // Set here rather than in the UXML: fixed-item-height is not a UXML attribute in every
+        // version this sample runs on.
+        m_ReportList.fixedItemHeight = 26;
         m_ReportList.makeItem = () =>
         {
             var label = new Label();

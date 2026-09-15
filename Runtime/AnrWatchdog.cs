@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
-using UnityEngine.Android;
 
 namespace Unity.Android
 {
@@ -15,6 +14,7 @@ namespace Unity.Android
     public static class AnrWatchdog
     {
         const string k_JavaClass = "com.unity3d.anrwatchdog.UnityAnrWatchdog";
+        const string k_UnityPlayerClass = "com.unity3d.player.UnityPlayer";
         const string k_ReportDirectoryName = "anr";
         const string k_ReportSearchPattern = "anr-*.json";
 
@@ -40,6 +40,27 @@ namespace Unity.Android
         static AndroidJavaClass Watchdog => s_Watchdog ??= new AndroidJavaClass(k_JavaClass);
 
         static AndroidJavaClass s_Watchdog;
+
+        /// <summary>
+        /// The activity the player is running in. Cached: fetching it off UnityPlayer costs a JNI
+        /// class lookup every time. (UnityEngine.Android.AndroidApplication would be tidier, but
+        /// it only exists from Unity 6 on.)
+        /// </summary>
+        static AndroidJavaObject CurrentActivity
+        {
+            get
+            {
+                if (s_Activity == null)
+                {
+                    using (var player = new AndroidJavaClass(k_UnityPlayerClass))
+                        s_Activity = player.GetStatic<AndroidJavaObject>("currentActivity");
+                }
+
+                return s_Activity;
+            }
+        }
+
+        static AndroidJavaObject s_Activity;
 
         /// <summary>
         /// Everything below this point talks to Java, which only exists in an Android player -
@@ -88,7 +109,7 @@ namespace Unity.Android
             Directory.CreateDirectory(ReportDirectory);
 
             Watchdog.CallStatic("start",
-                AndroidApplication.currentActivity,
+                CurrentActivity,
                 ReportDirectory,
                 settings.anrTimeoutMs,
                 settings.pollIntervalMs,

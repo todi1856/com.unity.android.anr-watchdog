@@ -1,16 +1,28 @@
 apply plugin: 'com.android.library'
 
+// Unity 2021.3 generates a Gradle project with an older Android Gradle Plugin than Unity 6 does,
+// so this file uses the DSL that plugin understands: compileSdkVersion rather than compileSdk, the
+// module identity in the manifest's package attribute rather than a namespace, and Java 11.
+//
+// The unity.* properties Unity 6 injects do not exist here either, so every value is read with
+// findProperty and falls back to something sane for a 2021.3 project.
 android {
-    namespace 'com.unity3d.anrwatchdog'
+    compileSdkVersion(findProperty("unity.targetSdkVersion")?.toInteger() ?: 33)
+    buildToolsVersion(findProperty("unity.buildToolsVersion") ?: "32.0.0")
 
-    ndkPath getProperty("unity.androidNdkPath")
-    ndkVersion getProperty("unity.androidNdkVersion")
-    compileSdk getProperty("unity.targetSdkVersion") as int
-    buildToolsVersion getProperty("unity.buildToolsVersion")
+    // Written into gradle.properties by AnrWatchdogGradleProperties, since 2021.3 does not supply
+    // them itself. Without them the module falls back to the NDK the project resolves.
+    def ndkPathProperty = findProperty("unity.androidNdkPath")
+    if (ndkPathProperty != null)
+        ndkPath ndkPathProperty
+
+    def ndkVersionProperty = findProperty("unity.androidNdkVersion")
+    if (ndkVersionProperty != null)
+        ndkVersion ndkVersionProperty
 
     defaultConfig {
-        minSdk getProperty("unity.minSdkVersion") as int
-        targetSdk getProperty("unity.targetSdkVersion") as int
+        minSdkVersion(findProperty("unity.minSdkVersion")?.toInteger() ?: 22)
+        targetSdkVersion(findProperty("unity.targetSdkVersion")?.toInteger() ?: 33)
 
         externalNativeBuild {
             cmake {
@@ -28,7 +40,7 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.valueOf(getProperty("unity.javaCompatabilityVersion"))
-        targetCompatibility JavaVersion.valueOf(getProperty("unity.javaCompatabilityVersion"))
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
 }

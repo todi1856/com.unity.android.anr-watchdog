@@ -1,6 +1,4 @@
-using System;
 using UnityEngine;
-using UnityEngine.TextCore.Text;
 using UnityEngine.UIElements;
 
 /// <summary>
@@ -33,7 +31,6 @@ static class AnrSampleBootstrap
             document.rootVisualElement.styleSheets.Add(styleSheet);
 
         StretchToPanel(document.rootVisualElement);
-        ApplyFallbackFont(document.rootVisualElement);
 
         // No EventSystem is set up here on purpose - UI Toolkit falls back to its own internal
         // event system, so the sample does not need com.unity.ugui.
@@ -79,42 +76,6 @@ static class AnrSampleBootstrap
         root.Query<TemplateContainer>().ForEach(container => container.style.flexGrow = 1);
     }
 
-    // Kept alive for the lifetime of the app - the font asset is generated at runtime and would
-    // otherwise be collected, taking its glyph atlas with it.
-    static FontAsset s_FontAsset;
-
-    /// <summary>
-    /// Without a theme style sheet there is no default font, and every label would render empty.
-    /// An SDF font asset is used rather than the legacy Font it is built from: the legacy text
-    /// path rebuilds its dynamic atlas as new glyphs appear, which shows up as stutter while
-    /// scrolling a long list.
-    /// </summary>
-    static void ApplyFallbackFont(VisualElement root)
-    {
-        if (root == null)
-            return;
-
-        var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        if (font == null)
-            font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        if (font == null)
-            return;
-
-        if (s_FontAsset == null)
-        {
-            try
-            {
-                s_FontAsset = FontAsset.CreateFontAsset(font);
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"Could not create an SDF font asset, falling back to the legacy font: {exception.Message}");
-            }
-        }
-
-        root.style.unityFontDefinition = s_FontAsset != null
-            ? FontDefinition.FromSDFFont(s_FontAsset)
-            : FontDefinition.FromFont(font);
-    }
+    // The font comes from the theme style sheet the panel is given; nothing is set up here.
 
 }

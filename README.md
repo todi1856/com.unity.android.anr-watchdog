@@ -4,6 +4,8 @@ A utility for detecting **ANR** (Application Not Responding) conditions in Unity
 
 [**Walkthrough video**](https://www.youtube.com/watch?v=6cbU-XhTFic) - the watchdog firing on a device, the report it writes, and symbolicating the native stacks in the Editor.
 
+> **This branch targets Unity 2021.3.** It differs from `main` in the parts that are version specific: the activity is fetched off `UnityPlayer` rather than `AndroidApplication`, the `.androidlib` uses the older Android Gradle Plugin DSL with the package declared in its manifest, and the Editor window builds its tables out of `ListView` rather than `MultiColumnListView`, with toolbar toggles in place of `TabView`.
+
 ### Which thread?
 
 Two different threads matter here, and the difference is the whole point of this package:
@@ -22,9 +24,45 @@ __Note:__ Detection and capture both run on a background thread, so they keep wo
 ## Requirements
 
 * [Git](https://git-scm.com/install/)
-* Unity **6000.0.0f1** or higher
+* Unity **2021.3** (this branch; `main` targets Unity 6)
 * Android as the active build target
 * Android **API level 23** or higher on the device
+* **CMake 3.22.1**, installed into the Android SDK - see below
+
+### Installing CMake 3.22.1
+
+The native part of the plugin is built by CMake during the Android build, and its `CMakeLists.txt` requires 3.22.1. The SDK that ships with Unity 2021.3 only contains CMake 3.10, so the build fails with something like *"CMake 3.22.1 or higher is required. You are running version 3.10.2"* until a newer one is installed.
+
+Install it into the SDK Unity is configured to use - by default the one bundled with the editor:
+
+```
+<Unity>\Editor\Data\PlaybackEngines\AndroidPlayer\SDK
+```
+
+**With the SDK manager on the command line.** `sdkmanager` needs a JDK, and the editor ships one next to the SDK:
+
+```
+set SDK=<Unity>\Editor\Data\PlaybackEngines\AndroidPlayer\SDK
+set JAVA_HOME=<Unity>\Editor\Data\PlaybackEngines\AndroidPlayer\OpenJDK
+"%SDK%\cmdline-tools\latest\bin\sdkmanager.bat" --sdk_root="%SDK%" "cmake;3.22.1"
+```
+
+Older bundled SDKs keep the tool at `%SDK%\tools\bin\sdkmanager.bat` instead. On macOS and Linux the script is `sdkmanager` without the extension.
+
+**With Android Studio.** Open **Settings → Languages & Frameworks → Android SDK**, point *Android SDK Location* at the path above, then under **SDK Tools** tick *Show Package Details*, select **CMake 3.22.1** and apply.
+
+Either way it lands in `<SDK>\cmake\3.22.1`, and the Android Gradle Plugin picks the newest installed version automatically. To be explicit instead, pin it in the plugin's `build.gradle`:
+
+```groovy
+externalNativeBuild {
+    cmake {
+        path 'src/main/cpp/CMakeLists.txt'
+        version '3.22.1'
+    }
+}
+```
+
+If Unity is pointed at an external SDK (**Preferences → External Tools → Android SDK**), install CMake into that one instead - the bundled SDK is not what the build will use.
 
 ## Tested on
 
